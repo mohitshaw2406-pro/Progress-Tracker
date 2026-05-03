@@ -2,6 +2,12 @@
 
 A simple and powerful habit tracking web application with gamification and analytics.
 
+## 🌐 Live Demo
+
+👉 https://your-username.github.io/habit-tracker/
+
+(Replace with your actual link)
+
 ## 🔥 Features
 
 * ✅ Add, edit, delete habits
@@ -11,6 +17,7 @@ A simple and powerful habit tracking web application with gamification and analy
 * 🏆 XP, Levels, and Badges system
 * 📈 Progress charts and heatmaps
 * 🎨 Clean UI with emojis and colors
+* 📱 PWA support (Install as app on mobile)
 
 ## 💻 Tech Used
 
@@ -18,8 +25,9 @@ A simple and powerful habit tracking web application with gamification and analy
 * CSS
 * JavaScript (Vanilla JS)
 * LocalStorage
+* Service Worker (PWA)
 
-## 🎮 Gamification 
+## 🎮 Gamification
 
 * Earn XP for completing habits
 * Unlock badges
@@ -30,6 +38,12 @@ A simple and powerful habit tracking web application with gamification and analy
 
 (Add screenshots here later)
 
+## 📱 How to Install (PWA)
+
+1. Open the website on mobile
+2. Click **Add to Home Screen**
+3. Use it like a mobile app
+
 ## 🚀 How to Run
 
 1. Download or clone the repo
@@ -37,7 +51,7 @@ A simple and powerful habit tracking web application with gamification and analy
 
 ## 📌 Future Improvements
 
-* Firebase integration
+* Firebase integration (for sync across devices)
 * User login system
 * Dark/Light mode toggle
 * Mobile optimization
@@ -45,3 +59,6 @@ A simple and powerful habit tracking web application with gamification and analy
 ## 🙌 Author
 
 Made with ❤️ by Mohit Shaw
+
+
+⚠️ Note: Data is stored per user using browser storage. Future updates may include cloud sync for cross-device access.
