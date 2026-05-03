@@ -1,5 +1,5 @@
 // ===================== CONSTANTS =====================
-const STORAGE_KEY = 'gt_v4';
+const STORAGE_KEY = 'gt_v4_user_' + (localStorage.getItem('userId') || 'guest');
 const EMOJIS = ['🌅','💪','💻','📚','🎌','🏃','🧘','🎯','📖','🎨','🎵','🍎','💡','🚀','🌙','⚡','🏋️','🧠','✍️','🎮','🌿','🎸','🤸','🏊'];
 const SUB_EMOJIS = ['🏋️','🏃','🤸','🏊','🚴','🧘','⚽','🏀','🎯','💪','🔥','⚡','📚','💻','🎸','🎨','🍎','🌿','🧠','✍️','📖','🎵','🚀','💡','🎮','🌙','🌅','🤼','🥊','🏇'];
 const COLORS = ['#7c5af5','#38bdf8','#34d399','#fbbf24','#fb7185','#f472b6','#fb923c','#a78bfa','#4ade80','#60a5fa'];
@@ -48,6 +48,11 @@ const DEFAULT_EXERCISE_ITEMS = [
   {id:'si_run',   name:'Running',     emoji:'🏃', sets:null, reps:null, duration:'30 min'},
   {id:'si_pull',  name:'Pull-ups',    emoji:'💪', sets:3, reps:8,  duration:''},
 ];
+
+if (!localStorage.getItem('userId')) {
+  const uid = 'user_' + Date.now();
+  localStorage.setItem('userId', uid);
+}
 
 // ===================== STATE =====================
 function loadData() {
@@ -1112,3 +1117,8 @@ document.getElementById('siName').addEventListener('keydown', e => { if(e.key===
 checkBadges();
 initGreeting();
 renderToday();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js")
+    .then(() => console.log("Service Worker Registered"));
+}
