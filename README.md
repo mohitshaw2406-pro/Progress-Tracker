@@ -4,7 +4,7 @@ A simple and powerful habit tracking web application with gamification and analy
 
 ## 🌐 Live Demo
 
-👉 https://mohitshaw2406-pro.github.io/progress-tracker/
+👉 https://mohitshaw2406-pro.github.io/Progress-Tracker/
 
 (Replace with your actual link)
 
