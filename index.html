@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Progress Tracker 🔥</title>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#07070a"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Progress Tracker"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🔥</div>
+    <div class="login-title">Progress Tracker</div>
+    <div class="login-sub">Check your Daily Habits — in a Cool Way..!</div>
+    <div class="login-features">
+      <div class="lf-row">☁️ Sync on all devices</div>
+      <div class="lf-row">📱 Works on both Phone + PC</div>
+      <div class="lf-row">🔒 Only your data, fully secured</div>
+    </div>
+    <button class="google-btn" id="googleSignInBtn">
+      <svg width="18" height="18" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Sign In with Google
+    </button>
+    <div class="login-note">No tension for Password😌</div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loadingScreen" class="loading-screen" style="display:none">
+  <div class="loading-spinner"></div>
+  <div class="loading-txt">Data is Loading... 🔥</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appRoot" style="display:none">
+
+<nav>
+  <div class="nav-inner">
+    <div class="logo">Progress Tracker 🔥</div>
+    <div class="tabs" id="tabBar">
+      <button class="tab on" data-pg="today">Today</button>
+      <button class="tab" data-pg="weekly">Week</button>
+      <button class="tab" data-pg="monthly">Month</button>
+      <button class="tab" data-pg="stats">Stats</button>
+      <button class="tab" data-pg="manage">Habits</button>
+    </div>
+    <button class="user-btn" id="userBtn" title="Account">👤</button>
+  </div>
+</nav>
+
+<!-- User menu dropdown -->
+<div class="user-menu" id="userMenu" style="display:none">
+  <div class="um-profile" id="umProfile"></div>
+  <div class="um-sync" id="umSync">🔄 Syncing...</div>
+  <button class="um-signout" id="signOutBtn">🚪 Sign Out</button>
+</div>
+
+<div class="wrap">
+
+  <!-- TODAY -->
+  <div class="pg on" id="pg-today">
+    <div class="level-banner" id="levelBanner">
+      <div class="lvl-badge">
+        <div class="lvl-num" id="lvlNum">1</div>
+        <div class="lvl-txt">LEVEL</div>
+      </div>
+      <div class="lvl-info">
+        <div class="lvl-title" id="lvlTitle">Rookie Grinder</div>
+        <div class="lvl-sub" id="lvlSub">0 / 100 XP</div>
+        <div class="xp-bar-wrap"><div class="xp-track"><div class="xp-fill" id="xpFill" style="width:0%"></div></div></div>
+        <div class="badges-row" id="badgesRow"></div>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-text">
+        <div class="hero-greeting" id="greeting"></div>
+        <div class="hero-date" id="heroDate"></div>
+        <div class="hero-quote" id="heroQuote"></div>
+      </div>
+      <div class="ring-box">
+        <svg width="88" height="88" viewBox="0 0 88 88">
+          <circle cx="44" cy="44" r="36" fill="none" stroke="#1d1d28" stroke-width="8"/>
+          <circle id="ringCircle" cx="44" cy="44" r="36" fill="none" stroke="url(#ringGrad)" stroke-width="8" stroke-linecap="round" stroke-dasharray="226.2" stroke-dashoffset="226.2" transform="rotate(-90 44 44)" style="transition:stroke-dashoffset .6s ease"/>
+          <defs><linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7c5af5"/><stop offset="100%" stop-color="#38bdf8"/></linearGradient></defs>
+        </svg>
+        <div class="ring-inner">
+          <div class="ring-pct" id="ringPct">0%</div>
+          <div class="ring-sub">Today</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-ic">🔥</div><div class="stat-n" id="statStreak">0</div><div class="stat-l">Day Streak</div></div>
+      <div class="stat"><div class="stat-ic">✅</div><div class="stat-n" id="statDone">0</div><div class="stat-l">Done Today</div></div>
+      <div class="stat"><div class="stat-ic">⚡</div><div class="stat-n" id="statXP">0</div><div class="stat-l">Total XP</div></div>
+    </div>
+
+    <div class="lbl">Habits</div>
+    <div class="habits" id="habitsList"></div>
+    <button class="add-habit-btn" id="openModalBtn">+ Add New Habit</button>
+  </div>
+
+  <!-- WEEKLY -->
+  <div class="pg" id="pg-weekly">
+    <div class="pg-header">
+      <div class="pg-title" id="wkTitle"></div>
+      <div class="pg-nav"><button class="nav-btn" id="wkPrev">‹ Prev</button><button class="nav-btn" id="wkNext">Next ›</button></div>
+    </div>
+    <div class="sum-grid" id="wkSummary"></div>
+    <div class="lbl">Daily bars</div>
+    <div class="week-bars" id="wkBars"></div>
+    <div class="lbl">Habit checklist</div>
+    <div class="htable-wrap"><table class="htable" id="wkTable"></table></div>
+  </div>
+
+  <!-- MONTHLY -->
+  <div class="pg" id="pg-monthly">
+    <div class="pg-header">
+      <div class="pg-title" id="moTitle"></div>
+      <div class="pg-nav"><button class="nav-btn" id="moPrev">‹ Prev</button><button class="nav-btn" id="moNext">Next ›</button></div>
+    </div>
+    <div class="sum-grid" id="moSummary"></div>
+    <div class="lbl">Calendar</div>
+    <div class="cal-outer">
+      <div class="cal-days-head"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+    <div class="lbl">Habit Progress</div>
+    <div class="mhb-list" id="moHabits"></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="pg" id="pg-stats">
+    <div class="lbl">Last 12 weeks — Activity Heatmap</div>
+    <div class="heatmap-wrap">
+      <div class="heatmap-title"><span>🟩Heatmap</span><span style="font-size:10px;color:var(--muted);font-weight:400">Last 84 days</span></div>
+      <div class="heatmap-grid" id="hmGrid"></div>
+      <div class="hm-legend">Less<div class="hm-legend-box" style="background:#1d1d28"></div><div class="hm-legend-box" style="background:#3b2f8a"></div><div class="hm-legend-box" style="background:#5b3fd1"></div><div class="hm-legend-box" style="background:#7c5af5"></div><div class="hm-legend-box" style="background:#a78bfa"></div>More</div>
+    </div>
+    <div class="charts-row">
+      <div class="chart-box"><div class="chart-title">🥧 Completion Breakdown</div><div class="pie-wrap"><canvas id="pieCanvas" width="100" height="100"></canvas><div class="pie-legend" id="pieLegend"></div></div></div>
+      <div class="chart-box"><div class="chart-title">📊 Best Habits (All Time)</div><div id="topHabitsChart" style="display:flex;flex-direction:column;gap:8px"></div></div>
+    </div>
+    <div class="line-chart-wrap"><div class="line-chart-title">📈 Last 30 Days — Daily Completion %</div><div class="line-svg-wrap"><canvas id="lineCanvas" style="width:100%;height:120px"></canvas></div></div>
+  </div>
+
+  <!-- MANAGE -->
+  <div class="pg" id="pg-manage">
+    <div class="lbl">Manage Your Habits</div>
+    <div class="mng-list" id="mngList"></div>
+    <button class="add-habit-btn" id="openModalBtn2">+ Add New Habit</button>
+  </div>
+
+</div>
+</div><!-- /appRoot -->
+
+<!-- HABIT MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">New Habit ✨</div>
+    <label class="f-lbl">Name *</label><input class="f-inp" id="mName" type="text" placeholder="e.g. Reading, Gym..." maxlength="30"/>
+    <label class="f-lbl">Description</label><input class="f-inp" id="mSub" type="text" placeholder="e.g. 30 min daily" maxlength="40"/>
+    <label class="f-lbl">Emoji</label><div class="emoji-pick" id="emojiPick"></div>
+    <label class="f-lbl">Color</label><div class="color-pick" id="colorPick"></div>
+    <div class="modal-actions"><button class="btn-cancel" id="closeModalBtn">Cancel</button><button class="btn-save" id="saveHabitBtn">Save ✓</button></div>
+  </div>
+</div>
+
+<!-- SUB TRACKER -->
+<div class="sub-overlay" id="subOverlay">
+  <div class="sub-modal">
+    <div class="sub-nav">
+      <button class="sub-back" id="subBack">← Back</button>
+      <div class="sub-nav-title" id="subNavTitle"></div>
+      <div style="width:60px"></div>
+    </div>
+    <div class="sub-hero" id="subHero"></div>
+    <div class="sub-tabs-wrap">
+      <div class="sub-tabs" id="subTabs">
+        <button class="sub-tab on" data-stab="items">📋 Items</button>
+        <button class="sub-tab" data-stab="progress">📈 Progress</button>
+        <button class="sub-tab" data-stab="manage">⚙️ Manage</button>
+      </div>
+    </div>
+    <div class="sub-content" id="subContent"></div>
+  </div>
+</div>
+
+<!-- SUB ITEM MODAL -->
+<div class="overlay" id="subItemOverlay" style="z-index:450">
+  <div class="modal">
+    <div class="modal-title" id="subItemModalTitle">New Item ✨</div>
+    <label class="f-lbl">Name *</label><input class="f-inp" id="siName" type="text" placeholder="e.g. Bench Press..." maxlength="40"/>
+    <label class="f-lbl">Sets (optional)</label><input class="f-inp" id="siSets" type="number" placeholder="e.g. 3" min="1" max="20"/>
+    <label class="f-lbl">Reps (optional)</label><input class="f-inp" id="siReps" type="number" placeholder="e.g. 10" min="1" max="100"/>
+    <label class="f-lbl">Duration (optional)</label><input class="f-inp" id="siDuration" type="text" placeholder="e.g. 30 min, 5km"/>
+    <label class="f-lbl">Emoji</label><div class="emoji-pick" id="siEmojiPick"></div>
+    <div class="modal-actions"><button class="btn-cancel" id="closeSubItemBtn">Cancel</button><button class="btn-save" id="saveSubItemBtn">Save ✓</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="cf-wrap" id="cfWrap"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="module" src="script.js"></script>
+</body>
+</html>
