@@ -1,4 +1,4 @@
-# 🚀 Grind Tracker (PWA)
+# 🚀 Progress Tracker (PWA)
 
 A simple yet powerful **habit tracking web app** built using **HTML, CSS, JavaScript** with **Firebase sync** and **PWA support**.
 
