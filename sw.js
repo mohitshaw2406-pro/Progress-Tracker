@@ -1,13 +1,12 @@
-<<<<<<< HEAD
-const CACHE = 'grind-v1';
+const CACHE = 'grind-v2';
 const ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/script.js',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/progress-tracker-icon-192.png',
+  '/progress-tracker-icon-512.png',
   'https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap',
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
@@ -29,33 +28,10 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Firebase requests — always network
   if (e.request.url.includes('firebase') || e.request.url.includes('google')) {
     return;
   }
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => cached))
   );
-=======
-const CACHE_NAME = "habit-tracker-v1";
-const urlsToCache = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./script.js"
-];
-
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-  );
-});
-
-self.addEventListener("fetch", event => {
-  event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request);
-    })
-  );
->>>>>>> b848e34cae2d7669478dab272a5a35634211928d
 });
