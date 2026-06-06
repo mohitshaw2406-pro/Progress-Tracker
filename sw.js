@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 const CACHE = 'grind-v1';
 const ASSETS = [
   '/',
@@ -35,4 +36,26 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => cached))
   );
+=======
+const CACHE_NAME = "habit-tracker-v1";
+const urlsToCache = [
+  "./",
+  "./index.html",
+  "./style.css",
+  "./script.js"
+];
+
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+  );
+});
+
+self.addEventListener("fetch", event => {
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
+  );
+>>>>>>> b848e34cae2d7669478dab272a5a35634211928d
 });
