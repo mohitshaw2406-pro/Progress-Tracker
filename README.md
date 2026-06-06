@@ -1,64 +1,136 @@
-# 🚀 Habit Tracker Web App
+# 🚀 Progress Tracker (PWA)
 
-A simple and powerful habit tracking web application with gamification and analytics.
+A simple yet powerful **habit tracking web app** built using **HTML, CSS, JavaScript** with **Firebase sync** and **PWA support**.
+
+Track your daily habits, build streaks, earn XP, and stay consistent 💪🔥
+
+---
 
 ## 🌐 Live Demo
 
 👉 https://mohitshaw2406-pro.github.io/Progress-Tracker/
 
-(Replace with your actual link)
+---
 
-## 🔥 Features
+## 📱 Features
 
-* ✅ Add, edit, delete habits
-* 📅 Daily habit tracking
-* 📊 Weekly & Monthly analytics
-* 🎯 Sub-task system (for workouts, etc.)
-* 🏆 XP, Levels, and Badges system
-* 📈 Progress charts and heatmaps
-* 🎨 Clean UI with emojis and colors
-* 📱 PWA support (Install as app on mobile)
+### ✅ Habit Tracking
 
-## 💻 Tech Used
+* Add / Edit / Delete habits
+* Daily progress tracking
+* Visual completion indicators
 
-* HTML
-* CSS
-* JavaScript (Vanilla JS)
-* LocalStorage
-* Service Worker (PWA)
+### 🔥 Streak System
 
-## 🎮 Gamification
+* Daily streak tracking
+* Perfect day detection
+* Weekly & monthly insights
+
+### 🎯 XP & Level System
 
 * Earn XP for completing habits
-* Unlock badges
-* Maintain streaks
-* Level up from Rookie → God Mode 🔱
+* Level up system with titles
+* Progress bar visualization
 
-## 📸 Screenshots
+### 🏆 Badges & Achievements
 
-(Add screenshots here later)
+* Unlock badges like:
 
-## 📱 How to Install (PWA)
+  * First Step 🎯
+  * Week Warrior 🔥
+  * Beast Mode 🦁
+  * Century 💯
 
-1. Open the website on mobile
-2. Click **Add to Home Screen**
-3. Use it like a mobile app
+### 📊 Analytics Dashboard
 
-## 🚀 How to Run
+* Weekly progress bars
+* Monthly calendar view
+* Heatmap (GitHub style)
+* Top habits chart
+* 30-day performance graph
 
-1. Download or clone the repo
-2. Open `index.html` in browser
+### 🧩 Sub-Tracker System (Advanced)
 
-## 📌 Future Improvements
+* Add sub-items inside habits (like exercises)
+* Track sets, reps, duration
+* Separate progress tracking
 
-* Firebase integration (for sync across devices)
-* User login system
-* Dark/Light mode toggle
-* Mobile optimization
+---
 
-## 🙌 Author
+## ☁️ Cloud Sync (Firebase)
 
-Made with ❤️ by Mohit Shaw
+* User login using Firebase Auth
+* Data stored in Firestore
+* Same data across:
 
+  * 📱 Mobile
+  * 💻 PC
+  * 🌐 Any browser
 
-⚠️ Note: Data is stored per user using browser storage. Future updates may include cloud sync for cross-device access.
+---
+
+## 📲 PWA Support
+
+* Installable on mobile & desktop
+* Works like an app
+* Add to Home Screen supported
+
+---
+
+## 🛠️ Tech Stack
+
+* HTML5
+* CSS3
+* JavaScript (Vanilla)
+* Firebase (Auth + Firestore)
+* GitHub Pages (Hosting)
+
+---
+
+## ⚙️ How to Use
+
+1. Open the live site
+2. Login using your Google account
+3. Add your habits
+4. Start tracking daily
+5. Build streaks and level up 🚀
+
+---
+
+## 🧠 How Data Works
+
+* Each user gets a unique ID (UID)
+* Data is stored securely in Firebase
+* No data mixing between users
+
+---
+
+## ⚠️ Note
+
+* Internet is required for sync (Firebase)
+* Without login, data may not sync across devices
+
+---
+
+## 🚀 Future Improvements
+
+* Push notifications 🔔
+* Dark / Light theme toggle 🌙
+* Data export (PDF / CSV) 📄
+* Social sharing / leaderboard 🏆
+
+---
+
+## 👨‍💻 Author
+
+Made with dedication by **Mohit Shaw** 💪🔥
+
+---
+
+## ⭐ Support
+
+If you like this project:
+
+* Star ⭐ the repo
+* Share with friends
+* Keep grinding 🚀
