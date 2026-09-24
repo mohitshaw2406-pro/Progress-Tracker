@@ -71,13 +71,21 @@ const DEFAULT_EXERCISE_ITEMS = [
 ];
 
 // ===================== STATE =====================
-let S = {
-  habits: JSON.parse(JSON.stringify(DEFAULT_HABITS)),
-  history: {},
-  badges: [],
-  subItems: { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
-  subHistory: {}
-};
+function getInitialState() {
+  return {
+    habits: JSON.parse(JSON.stringify(DEFAULT_HABITS)),
+    history: {},
+    badges: [],
+    subItems: { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
+    subHistory: {}
+  };
+}
+
+let S = getInitialState();
+
+function resetState() {
+  S = getInitialState();
+}
 
 // ===================== FIREBASE DATA SYNC =====================
 function getUserDocRef() {
@@ -897,7 +905,9 @@ document.addEventListener('click', e => {
 
 document.getElementById('signOutBtn').addEventListener('click', async () => {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
+  clearTimeout(saveTimeout);
   localStorage.removeItem('pt_active_guest');
+  resetState();
   if (auth) {
     try { await signOut(auth); } catch(e) {}
   }
@@ -954,6 +964,8 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
     if (unsubscribeSnapshot) unsubscribeSnapshot();
+    clearTimeout(saveTimeout);
+    resetState();
     currentUser = null;
     showLogin();
   }
