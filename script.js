@@ -83,9 +83,17 @@ function getInitialState() {
 }
 
 let S = getInitialState();
+let lastToggledHabitId = null;
+let lastToggledAction = null;
+let lastAddedHabitId = null;
+let prevTccPct = null;
 
 function resetState() {
   S = getInitialState();
+  lastToggledHabitId = null;
+  lastToggledAction = null;
+  lastAddedHabitId = null;
+  prevTccPct = null;
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
   renderHabitInsights();
@@ -348,6 +356,12 @@ function renderTodayCommandCenter() {
   const pctEl = document.getElementById('tccPct');
   if (pctEl) {
     pctEl.textContent = `${pct}%`;
+    if (prevTccPct !== null && prevTccPct !== pct) {
+      pctEl.classList.remove('pct-bump');
+      void pctEl.offsetWidth;
+      pctEl.classList.add('pct-bump');
+    }
+    prevTccPct = pct;
   }
 
   const barEl = document.getElementById('tccBarFill');
@@ -414,11 +428,20 @@ function renderToday() {
 
   S.habits.forEach(h => {
     const isDone = done.includes(h.id);
+    const isJustToggled = (h.id === lastToggledHabitId);
+    const isJustAdded = (h.id === lastAddedHabitId);
+    let animClass = '';
+    if (isJustToggled) {
+      animClass = (lastToggledAction === 'complete') ? ' just-completed' : ' just-unchecked';
+    } else if (isJustAdded) {
+      animClass = ' just-added';
+    }
+
     const subItems = getSubItems(h.id);
     const subDone = getSubDone(h.id, tk);
     const hasSub = subItems.length > 0;
     const card = document.createElement('div');
-    card.className = 'hcard' + (isDone ? ' done' : '');
+    card.className = 'hcard' + (isDone ? ' done' : '') + animClass;
     if (isDone) { card.style.background = h.color + '14'; card.style.borderColor = h.color + '55'; }
     let dots = '';
     for (let i = 6; i >= 0; i--) {
@@ -461,6 +484,8 @@ function toggleHabit(id) {
   const idx = arr.indexOf(id);
   const prevXP = calcTotalXP();
   if (idx === -1) {
+    lastToggledHabitId = id;
+    lastToggledAction = 'complete';
     arr.push(id);
     setDone(tk, arr);
     const newBadges = checkBadges();
@@ -471,10 +496,18 @@ function toggleHabit(id) {
     if (arr.length === S.habits.length && S.habits.length > 0) { confetti(); toast('BEAST MODE! Saari habits done! 🔥🔥'); }
     else toast('Done! +' + (calcTotalXP()-prevXP) + ' XP 💪');
   } else {
+    lastToggledHabitId = id;
+    lastToggledAction = 'uncomplete';
     arr.splice(idx, 1);
     setDone(tk, arr);
   }
   renderToday();
+  setTimeout(() => {
+    if (lastToggledHabitId === id) {
+      lastToggledHabitId = null;
+      lastToggledAction = null;
+    }
+  }, 350);
 }
 
 // ===================== SUB-TRACKER =====================
@@ -1956,7 +1989,8 @@ function renderManage() {
   if (!S.habits.length) { list.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:2rem">Abhi koi habit nahi. Niche se add karo!</div>'; return; }
   S.habits.forEach(h => {
     const subCount=getSubItems(h.id).length;
-    const row=document.createElement('div'); row.className='mng-row';
+    const isJustAdded = (h.id === lastAddedHabitId);
+    const row=document.createElement('div'); row.className='mng-row' + (isJustAdded ? ' just-added' : '');
     row.innerHTML=`
       <div class="mng-ico" style="background:${h.color}20;cursor:pointer" title="View details">${h.icon}</div>
       <div style="flex:1;cursor:pointer" class="mng-info-wrap"><div class="mng-name">${h.name}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${h.sub||'No description'}${subCount>0?` · <span style="color:${h.color}">${subCount} items</span>`:''}</div></div>
@@ -2028,8 +2062,12 @@ function saveHabit() {
     toast('Habit update ho gayi! ✏️');
   } else {
     const id='h_'+Date.now();
+    lastAddedHabitId = id;
     S.habits.push({id,name,sub:document.getElementById('mSub').value.trim(),icon:selEmoji,color:selColor});
     saveToFirebase(); closeModal(); renderToday(); renderManage();
+    setTimeout(() => {
+      if (lastAddedHabitId === id) lastAddedHabitId = null;
+    }, 500);
     toast('Nai habit add ho gayi! 🎯');
   }
 }
