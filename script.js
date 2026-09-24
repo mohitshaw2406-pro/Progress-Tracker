@@ -81,10 +81,31 @@ let S = {
 
 // ===================== FIREBASE DATA SYNC =====================
 function getUserDocRef() {
+  if (!currentUser || currentUser.isGuest) return null;
   return doc(db, 'users', currentUser.uid);
 }
 
 async function loadFromFirebase() {
+  if (!currentUser) return;
+  if (currentUser.isGuest) {
+    try {
+      const raw = localStorage.getItem('pt_data_' + currentUser.uid);
+      if (raw) {
+        const data = JSON.parse(raw);
+        S = {
+          habits: data.habits || JSON.parse(JSON.stringify(DEFAULT_HABITS)),
+          history: data.history || {},
+          badges: data.badges || [],
+          subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
+          subHistory: data.subHistory || {}
+        };
+      }
+    } catch(e) {
+      console.error('Local load error:', e);
+    }
+    updateSyncLabel('locally saved');
+    return;
+  }
   try {
     const snap = await getDoc(getUserDocRef());
     if (snap.exists()) {
@@ -106,11 +127,26 @@ async function loadFromFirebase() {
 
 function saveToFirebase() {
   if (!currentUser) return;
+  if (currentUser.isGuest) {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      try {
+        localStorage.setItem('pt_data_' + currentUser.uid, JSON.stringify(S));
+        updateSyncLabel('locally saved');
+      } catch(e) {
+        console.error('Local save error:', e);
+      }
+    }, 500);
+    return;
+  }
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
     try {
-      await setDoc(getUserDocRef(), S);
-      updateSyncLabel('abhi');
+      const ref = getUserDocRef();
+      if (ref) {
+        await setDoc(ref, S);
+        updateSyncLabel('abhi');
+      }
     } catch(e) {
       console.error('Firebase save error:', e);
     }
@@ -124,7 +160,10 @@ function updateSyncLabel(when) {
 
 function subscribeToChanges() {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
-  unsubscribeSnapshot = onSnapshot(getUserDocRef(), (snap) => {
+  if (!currentUser || currentUser.isGuest) return;
+  const ref = getUserDocRef();
+  if (!ref) return;
+  unsubscribeSnapshot = onSnapshot(ref, (snap) => {
     if (!snap.exists()) return;
     const data = snap.data();
     const newStr = JSON.stringify(data);
@@ -858,26 +897,62 @@ document.addEventListener('click', e => {
 
 document.getElementById('signOutBtn').addEventListener('click', async () => {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
-  await signOut(auth);
+  localStorage.removeItem('pt_active_guest');
+  if (auth) {
+    try { await signOut(auth); } catch(e) {}
+  }
   currentUser=null;
   showLogin();
 });
 
+function loginAsGuest() {
+  const guestUser = {
+    uid: 'guest_user',
+    displayName: 'Guest Grinder',
+    email: 'guest@progress-tracker.local',
+    photoURL: '',
+    isGuest: true
+  };
+  currentUser = guestUser;
+  localStorage.setItem('pt_active_guest', 'true');
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('loadingScreen').style.display='flex';
+  loadFromFirebase().then(() => {
+    showApp(guestUser);
+  });
+}
+
+document.getElementById('guestSignInBtn')?.addEventListener('click', () => {
+  loginAsGuest();
+});
+
 document.getElementById('googleSignInBtn').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, provider); }
-  catch(e) { toast('Sign in mein problem aayi, try again karo'); }
+  try {
+    await signInWithPopup(auth, provider);
+  } catch(e) {
+    console.warn('Google sign-in error:', e);
+    toast('Google sign-in blocked or unavailable. Continuing as Guest...');
+    setTimeout(() => {
+      loginAsGuest();
+    }, 800);
+  }
 });
 
 // ===================== AUTH STATE =====================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    localStorage.removeItem('pt_active_guest');
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('loadingScreen').style.display='flex';
     await loadFromFirebase();
     subscribeToChanges();
     showApp(user);
   } else {
+    if (localStorage.getItem('pt_active_guest') === 'true') {
+      loginAsGuest();
+      return;
+    }
     if (unsubscribeSnapshot) unsubscribeSnapshot();
     currentUser = null;
     showLogin();

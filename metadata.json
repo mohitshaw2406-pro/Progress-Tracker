@@ -1,0 +1,8 @@
+{
+  "name": "Progress Tracker 🔥",
+  "description": "Check your daily habits, build streaks, level up, and track your progress in a cool way.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
