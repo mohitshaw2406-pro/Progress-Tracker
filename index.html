@@ -117,6 +117,39 @@
       <div class="stat"><div class="stat-ic">⚡</div><div class="stat-n" id="statXP">0</div><div class="stat-l">Total XP</div></div>
     </div>
 
+    <!-- TODAY COMMAND CENTER -->
+    <div class="today-cc" id="todayCC">
+      <div class="tcc-header">
+        <div>
+          <div class="tcc-label">TODAY</div>
+          <div class="tcc-date" id="tccDate"></div>
+        </div>
+      </div>
+
+      <div class="tcc-body">
+        <div class="tcc-stats-row">
+          <div class="tcc-count" id="tccCount">0 / 0 habits completed</div>
+          <div class="tcc-pct" id="tccPct">0%</div>
+        </div>
+        <div class="tcc-bar-track">
+          <div class="tcc-bar-fill" id="tccBarFill" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="tcc-footer">
+        <div class="tcc-pill">
+          <span id="tccStreak">🔥 0 day streak</span>
+        </div>
+        <div class="tcc-pill">
+          <span id="tccRemaining">⏳ 0 habits remaining</span>
+        </div>
+      </div>
+
+      <div class="tcc-complete-banner" id="tccCompleteBanner" style="display: none;">
+        🎉 All habits completed today!
+      </div>
+    </div>
+
     <div class="lbl">Habits</div>
     <div class="habits" id="habitsList"></div>
     <button class="add-habit-btn" id="openModalBtn">+ Add New Habit</button>

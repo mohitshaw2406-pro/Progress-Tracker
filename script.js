@@ -320,6 +320,71 @@ function renderLevel() {
   });
 }
 
+// ===================== TODAY COMMAND CENTER =====================
+function renderTodayCommandCenter() {
+  const tk = todayKey();
+  const done = getDone(tk);
+  const total = S.habits.length;
+  const doneCount = done.length;
+  const pct = total ? Math.round((doneCount / total) * 100) : 0;
+  const streak = calcStreak();
+  const remaining = Math.max(0, total - doneCount);
+  const allCompleted = total > 0 && doneCount === total;
+
+  const dateEl = document.getElementById('tccDate');
+  if (dateEl) {
+    dateEl.textContent = today().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  const countEl = document.getElementById('tccCount');
+  if (countEl) {
+    countEl.textContent = `${doneCount} / ${total} habits completed`;
+  }
+
+  const pctEl = document.getElementById('tccPct');
+  if (pctEl) {
+    pctEl.textContent = `${pct}%`;
+  }
+
+  const barEl = document.getElementById('tccBarFill');
+  if (barEl) {
+    barEl.style.width = `${pct}%`;
+    if (allCompleted) {
+      barEl.classList.add('completed');
+    } else {
+      barEl.classList.remove('completed');
+    }
+  }
+
+  const streakEl = document.getElementById('tccStreak');
+  if (streakEl) {
+    streakEl.textContent = `🔥 ${streak} day streak`;
+  }
+
+  const remEl = document.getElementById('tccRemaining');
+  if (remEl) {
+    if (allCompleted) {
+      remEl.textContent = `🎉 0 habits remaining`;
+    } else {
+      remEl.textContent = `⏳ ${remaining} ${remaining === 1 ? 'habit' : 'habits'} remaining`;
+    }
+  }
+
+  const bannerEl = document.getElementById('tccCompleteBanner');
+  if (bannerEl) {
+    bannerEl.style.display = allCompleted ? 'flex' : 'none';
+  }
+
+  const cardEl = document.getElementById('todayCC');
+  if (cardEl) {
+    if (allCompleted) {
+      cardEl.classList.add('all-done');
+    } else {
+      cardEl.classList.remove('all-done');
+    }
+  }
+}
+
 // ===================== TODAY =====================
 function renderToday() {
   const tk = todayKey();
@@ -332,6 +397,7 @@ function renderToday() {
   document.getElementById('statStreak').textContent = calcStreak();
   document.getElementById('statDone').textContent = done.length + (total ? '/'+total : '');
   renderLevel();
+  renderTodayCommandCenter();
 
   const list = document.getElementById('habitsList');
   list.innerHTML = '';

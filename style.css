@@ -60,6 +60,23 @@ nav{position:sticky;top:0;z-index:50;background:#07070acc;backdrop-filter:blur(1
 .stat-n{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;line-height:1}
 .stat-l{font-size:10px;color:var(--muted);margin-top:3px}
 
+/* TODAY COMMAND CENTER */
+.today-cc{background:var(--s1);border:1px solid var(--border);border-radius:20px;padding:1.25rem 1.4rem;margin-bottom:1.25rem;transition:border-color .3s ease,background .3s ease;position:relative;overflow:hidden}
+.today-cc.all-done{border-color:rgba(52,211,153,.4);background:linear-gradient(135deg,rgba(52,211,153,.06),var(--s1))}
+.tcc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.tcc-label{font-size:10px;font-weight:700;color:var(--pur2);letter-spacing:1.5px;text-transform:uppercase}
+.tcc-date{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--txt);margin-top:2px}
+.tcc-stats-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tcc-count{font-size:13px;font-weight:600;color:var(--txt)}
+.tcc-pct{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--pur2)}
+.today-cc.all-done .tcc-pct{color:var(--grn)}
+.tcc-bar-track{width:100%;height:9px;background:var(--s3);border-radius:6px;overflow:hidden;margin-bottom:14px}
+.tcc-bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--pur),var(--blu));transition:width .5s cubic-bezier(0.4,0,0.2,1)}
+.tcc-bar-fill.completed{background:linear-gradient(90deg,var(--grn),var(--blu))}
+.tcc-footer{display:flex;gap:10px;flex-wrap:wrap}
+.tcc-pill{background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--txt);display:inline-flex;align-items:center}
+.tcc-complete-banner{margin-top:12px;padding:10px 14px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);border-radius:12px;color:var(--grn);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+
 /* HABIT CARDS */
 .habits{display:flex;flex-direction:column;gap:10px;margin-bottom:1.25rem}
 .hcard{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:16px;cursor:pointer;transition:transform 0.15s,border-color 0.2s,background 0.2s;user-select:none;display:flex;align-items:center;gap:14px;position:relative;overflow:hidden}
@@ -328,6 +345,8 @@ nav{position:sticky;top:0;z-index:50;background:#07070acc;backdrop-filter:blur(1
 .um-signout:hover{background:#fb718518}
 
 @media(max-width:600px){
+  .today-cc{padding:1.1rem 1rem}
+  .tcc-date{font-size:16px}
   .sum-grid{grid-template-columns:1fr 1fr}
   .nav-inner{padding:0 .8rem}
   .tabs{gap:1px}
