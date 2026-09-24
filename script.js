@@ -88,6 +88,7 @@ function resetState() {
   S = getInitialState();
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
+  renderHabitInsights();
 }
 
 // ===================== FIREBASE DATA SYNC =====================
@@ -402,6 +403,7 @@ function renderToday() {
   renderLevel();
   renderTodayCommandCenter();
   renderPersonalRecords();
+  renderHabitInsights();
 
   const list = document.getElementById('habitsList');
   list.innerHTML = '';
@@ -1217,7 +1219,424 @@ function renderPersonalRecords() {
 }
 
 // ===================== STATS =====================
-function renderStats() { renderPersonalRecords(); renderHeatmap(); renderPieChart(); renderTopHabits(); renderLineChart(); }
+function renderStats() { renderPersonalRecords(); renderHabitInsights(); renderHeatmap(); renderPieChart(); renderTopHabits(); renderLineChart(); }
+
+// ===================== HABIT INSIGHTS =====================
+function getDateKeysInRange(startKey, endKey) {
+  if (!startKey || !endKey || startKey > endKey) return [];
+  const [sy, sm, sd] = startKey.split('-').map(Number);
+  const cur = new Date(sy, sm - 1, sd);
+  cur.setHours(0, 0, 0, 0);
+
+  const [ey, em, ed] = endKey.split('-').map(Number);
+  const end = new Date(ey, em - 1, ed);
+  end.setHours(0, 0, 0, 0);
+
+  const keys = [];
+  while (cur <= end) {
+    keys.push(dkey(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return keys;
+}
+
+function isHabitEligibleOnDateKey(habit, dateKey, earliestDateWithDone) {
+  const tk = todayKey();
+  if (dateKey > tk) return false;
+  if (earliestDateWithDone && dateKey < earliestDateWithDone) {
+    return (getDone(dateKey) || []).includes(habit.id);
+  }
+  if (habit.id && habit.id.startsWith('h_')) {
+    const ts = parseInt(habit.id.slice(2), 10);
+    if (!isNaN(ts) && ts > 1500000000000) {
+      const habitCreatedKey = dkey(new Date(ts));
+      if (dateKey < habitCreatedKey) {
+        return (getDone(dateKey) || []).includes(habit.id);
+      }
+    }
+  }
+  return true;
+}
+
+function getHabitCompletionRate(habit, earliestDateWithDone) {
+  const tk = todayKey();
+  if (!earliestDateWithDone) return { completionDays: 0, eligibleDays: 0, ratePct: null };
+
+  let habitStartKey = earliestDateWithDone;
+  if (habit.id && habit.id.startsWith('h_')) {
+    const ts = parseInt(habit.id.slice(2), 10);
+    if (!isNaN(ts) && ts > 1500000000000) {
+      const createdKey = dkey(new Date(ts));
+      if (createdKey > habitStartKey) {
+        habitStartKey = createdKey;
+      }
+    }
+  }
+  const completedDates = Object.keys(S.history || {})
+    .filter(k => (getDone(k) || []).includes(habit.id))
+    .sort();
+  if (completedDates.length > 0 && completedDates[0] < habitStartKey) {
+    habitStartKey = completedDates[0];
+  }
+  if (habitStartKey > tk) habitStartKey = tk;
+
+  const dateKeys = getDateKeysInRange(habitStartKey, tk);
+  let completionDays = 0;
+  let eligibleDays = 0;
+
+  dateKeys.forEach(k => {
+    if (isHabitEligibleOnDateKey(habit, k, earliestDateWithDone)) {
+      eligibleDays++;
+      if ((getDone(k) || []).includes(habit.id)) {
+        completionDays++;
+      }
+    }
+  });
+
+  const ratePct = eligibleDays > 0 ? Math.min(100, Math.round((completionDays / eligibleDays) * 100)) : null;
+  return { completionDays, eligibleDays, ratePct };
+}
+
+function getBestWeekday(earliestDateWithDone) {
+  if (!earliestDateWithDone) return null;
+  const tk = todayKey();
+  const dateKeys = getDateKeysInRange(earliestDateWithDone, tk);
+  if (dateKeys.length < 3) return null;
+
+  const weekdayStats = Array.from({ length: 7 }, () => ({ completed: 0, eligible: 0, dayCount: 0 }));
+
+  dateKeys.forEach(k => {
+    const [y, m, d] = k.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const dow = dt.getDay();
+
+    const doneIds = [...new Set(getDone(k) || [])];
+    const completedCount = doneIds.length;
+
+    let eligibleCount = completedCount;
+    S.habits.forEach(h => {
+      if (!doneIds.includes(h.id) && isHabitEligibleOnDateKey(h, k, earliestDateWithDone)) {
+        eligibleCount++;
+      }
+    });
+
+    if (eligibleCount > 0) {
+      weekdayStats[dow].completed += completedCount;
+      weekdayStats[dow].eligible += eligibleCount;
+      weekdayStats[dow].dayCount++;
+    }
+  });
+
+  let bestDow = null;
+  let bestRate = -1;
+  let maxCompleted = 0;
+
+  weekdayStats.forEach((st, dow) => {
+    if (st.eligible > 0 && st.completed > 0) {
+      const rate = st.completed / st.eligible;
+      if (rate > bestRate || (rate === bestRate && st.completed > maxCompleted)) {
+        bestRate = rate;
+        bestDow = dow;
+        maxCompleted = st.completed;
+      }
+    }
+  });
+
+  if (bestDow === null || bestRate <= 0) return null;
+
+  const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return {
+    dayName: weekdayNames[bestDow],
+    ratePct: Math.min(100, Math.round(bestRate * 100)),
+    completed: weekdayStats[bestDow].completed,
+    eligible: weekdayStats[bestDow].eligible
+  };
+}
+
+function getRecentTrend(earliestDateWithDone) {
+  if (!earliestDateWithDone) return null;
+  
+  const recentDays = [];
+  const priorDays = [];
+  
+  const now = today();
+  now.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    recentDays.push(dkey(d));
+  }
+
+  for (let i = 7; i < 14; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    priorDays.push(dkey(d));
+  }
+
+  const priorTrackingDays = priorDays.filter(k => k >= earliestDateWithDone);
+  if (priorTrackingDays.length < 3) {
+    return null;
+  }
+
+  let recentCompletions = 0;
+  recentDays.forEach(k => {
+    recentCompletions += [...new Set(getDone(k) || [])].length;
+  });
+
+  let priorCompletions = 0;
+  priorDays.forEach(k => {
+    priorCompletions += [...new Set(getDone(k) || [])].length;
+  });
+
+  let trendType = 'steady';
+  let desc = 'Your recent completion activity matches the previous period.';
+  let valText = 'Activity is steady (→)';
+
+  if (recentCompletions > priorCompletions) {
+    trendType = 'up';
+    valText = 'Activity is higher (↗)';
+    desc = 'Your recent completion activity is higher than the previous period.';
+  } else if (recentCompletions < priorCompletions) {
+    trendType = 'down';
+    valText = 'Activity is lower (↘)';
+    desc = 'Your recent completion activity is lower than the previous period.';
+  }
+
+  return {
+    trendType,
+    valText,
+    desc,
+    recentCompletions,
+    priorCompletions
+  };
+}
+
+function getHabitInsights() {
+  const historyKeys = Object.keys(S.history || {});
+  const datesWithCompletions = historyKeys
+    .filter(k => (getDone(k) || []).length > 0)
+    .sort();
+
+  const earliestDateWithDone = datesWithCompletions[0] || null;
+  let totalCompletions = 0;
+  historyKeys.forEach(k => {
+    totalCompletions += [...new Set(getDone(k) || [])].length;
+  });
+
+  const habitStats = S.habits.map(h => {
+    const compRate = getHabitCompletionRate(h, earliestDateWithDone);
+    
+    let uniqueDays = 0;
+    historyKeys.forEach(k => {
+      if (k <= todayKey() && (getDone(k) || []).includes(h.id)) {
+        uniqueDays++;
+      }
+    });
+
+    return {
+      habit: h,
+      completionDays: compRate.completionDays,
+      eligibleDays: compRate.eligibleDays,
+      ratePct: compRate.ratePct,
+      uniqueDays
+    };
+  });
+
+  // 1. Strongest Habit
+  let strongest = null;
+  if (totalCompletions >= 3 && datesWithCompletions.length >= 2) {
+    const qualifying = habitStats.filter(x => x.eligibleDays >= 3 && x.ratePct !== null && x.completionDays >= 1);
+    if (qualifying.length > 0) {
+      qualifying.sort((a, b) => {
+        if (b.ratePct !== a.ratePct) return b.ratePct - a.ratePct;
+        return b.completionDays - a.completionDays;
+      });
+      strongest = qualifying[0];
+    }
+  }
+
+  // 2. Best Day
+  const bestDay = getBestWeekday(earliestDateWithDone);
+
+  // 3. Recent Trend
+  const trend = getRecentTrend(earliestDateWithDone);
+
+  // 4. Most Active Habit
+  let mostActive = null;
+  if (totalCompletions > 0 && S.habits.length > 0) {
+    const activeHabits = [...habitStats].filter(x => x.uniqueDays > 0);
+    if (activeHabits.length > 0) {
+      activeHabits.sort((a, b) => b.uniqueDays - a.uniqueDays);
+      mostActive = activeHabits[0];
+    }
+  }
+
+  // 5. Overall Consistency
+  let overallConsistency = null;
+  if (earliestDateWithDone && totalCompletions > 0) {
+    const tk = todayKey();
+    const dateKeys = getDateKeysInRange(earliestDateWithDone, tk);
+    let totalDoneAllDays = 0;
+    let totalEligibleAllDays = 0;
+
+    dateKeys.forEach(k => {
+      const doneIds = [...new Set(getDone(k) || [])];
+      let dayEligible = doneIds.length;
+      S.habits.forEach(h => {
+        if (!doneIds.includes(h.id) && isHabitEligibleOnDateKey(h, k, earliestDateWithDone)) {
+          dayEligible++;
+        }
+      });
+      totalDoneAllDays += doneIds.length;
+      totalEligibleAllDays += Math.max(doneIds.length, dayEligible);
+    });
+
+    if (totalEligibleAllDays > 0 && totalDoneAllDays > 0) {
+      const pct = Math.min(100, Math.round((totalDoneAllDays / totalEligibleAllDays) * 100));
+      overallConsistency = {
+        pct,
+        totalDone: totalDoneAllDays,
+        totalEligible: totalEligibleAllDays
+      };
+    }
+  }
+
+  // 6. Weakest / Needs Attention
+  let needsAttention = null;
+  if (totalCompletions >= 3 && S.habits.length >= 2) {
+    const qualifying = habitStats.filter(x => x.eligibleDays >= 3 && x.ratePct !== null);
+    if (qualifying.length >= 2) {
+      qualifying.sort((a, b) => {
+        if (a.ratePct !== b.ratePct) return a.ratePct - b.ratePct;
+        return a.completionDays - b.completionDays;
+      });
+      const lowest = qualifying[0];
+      const highest = qualifying[qualifying.length - 1];
+      if (lowest.ratePct < 95 && lowest.ratePct < highest.ratePct) {
+        needsAttention = lowest;
+      } else {
+        needsAttention = 'on_track';
+      }
+    }
+  }
+
+  return {
+    totalCompletions,
+    hasHabits: S.habits.length > 0,
+    strongest,
+    bestDay,
+    trend,
+    mostActive,
+    overallConsistency,
+    needsAttention
+  };
+}
+
+function renderHabitInsights() {
+  const card = document.getElementById('hiCard');
+  if (!card) return;
+
+  const emptyEl = document.getElementById('hiEmpty');
+  const gridEl = document.getElementById('hiGrid');
+
+  const insights = getHabitInsights();
+
+  if (!insights.hasHabits || insights.totalCompletions === 0) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (gridEl) gridEl.style.display = 'none';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (gridEl) gridEl.style.display = 'grid';
+
+  // 1. Strongest Habit
+  const strongestValEl = document.getElementById('hiStrongestHabit');
+  const strongestSubEl = document.getElementById('hiStrongestHabitSub');
+  if (strongestValEl && strongestSubEl) {
+    if (insights.strongest) {
+      strongestValEl.textContent = `${insights.strongest.habit.icon} ${insights.strongest.habit.name} — ${insights.strongest.ratePct}%`;
+      strongestSubEl.textContent = `${insights.strongest.completionDays} of ${insights.strongest.eligibleDays} days completed`;
+    } else {
+      strongestValEl.textContent = 'Not enough data yet.';
+      strongestSubEl.textContent = 'Requires a few days of recorded activity.';
+    }
+  }
+
+  // 2. Best Day
+  const bestDayValEl = document.getElementById('hiBestDay');
+  const bestDaySubEl = document.getElementById('hiBestDaySub');
+  if (bestDayValEl && bestDaySubEl) {
+    if (insights.bestDay) {
+      bestDayValEl.textContent = `${insights.bestDay.dayName} — ${insights.bestDay.ratePct}% completion`;
+      bestDaySubEl.textContent = `${insights.bestDay.completed} habits completed on ${insights.bestDay.dayName}s`;
+    } else {
+      bestDayValEl.textContent = 'Not enough data yet.';
+      bestDaySubEl.textContent = 'Track habits across different days of the week.';
+    }
+  }
+
+  // 3. Recent Trend
+  const trendValEl = document.getElementById('hiRecentTrend');
+  const trendSubEl = document.getElementById('hiRecentTrendSub');
+  if (trendValEl && trendSubEl) {
+    if (insights.trend) {
+      trendValEl.textContent = insights.trend.valText;
+      trendSubEl.textContent = insights.trend.desc;
+    } else {
+      trendValEl.textContent = 'Not enough data yet.';
+      trendSubEl.textContent = 'Compare periods once more history is recorded.';
+    }
+  }
+
+  // 4. Most Active Habit
+  const mostActiveValEl = document.getElementById('hiMostActiveHabit');
+  const mostActiveSubEl = document.getElementById('hiMostActiveHabitSub');
+  if (mostActiveValEl && mostActiveSubEl) {
+    if (insights.mostActive) {
+      mostActiveValEl.textContent = `${insights.mostActive.habit.icon} ${insights.mostActive.habit.name}`;
+      mostActiveSubEl.textContent = `${insights.mostActive.uniqueDays} ${insights.mostActive.uniqueDays === 1 ? 'day' : 'days'} completed`;
+    } else {
+      mostActiveValEl.textContent = 'Not enough data yet.';
+      mostActiveSubEl.textContent = 'Complete habits to see your most frequent activity.';
+    }
+  }
+
+  // 5. Overall Consistency
+  const consistencyValEl = document.getElementById('hiConsistency');
+  const consistencySubEl = document.getElementById('hiConsistencySub');
+  if (consistencyValEl && consistencySubEl) {
+    if (insights.overallConsistency) {
+      consistencyValEl.textContent = `${insights.overallConsistency.pct}% overall completion`;
+      consistencySubEl.textContent = `${insights.overallConsistency.totalDone} of ${insights.overallConsistency.totalEligible} eligible habit-days`;
+    } else {
+      consistencyValEl.textContent = 'Not enough data yet.';
+      consistencySubEl.textContent = 'Updates as you log daily habits.';
+    }
+  }
+
+  // 6. Weakest / Needs Attention
+  const needsAttentionValEl = document.getElementById('hiNeedsAttention');
+  const needsAttentionSubEl = document.getElementById('hiNeedsAttentionSub');
+  if (needsAttentionValEl && needsAttentionSubEl) {
+    if (insights.needsAttention === 'on_track') {
+      needsAttentionValEl.textContent = 'All habits on track';
+      needsAttentionSubEl.textContent = 'All active habits maintain healthy consistency.';
+    } else if (insights.needsAttention) {
+      needsAttentionValEl.textContent = `${insights.needsAttention.habit.icon} ${insights.needsAttention.habit.name} — ${insights.needsAttention.ratePct}%`;
+      needsAttentionSubEl.textContent = `${insights.needsAttention.completionDays} of ${insights.needsAttention.eligibleDays} days completed`;
+    } else {
+      needsAttentionValEl.textContent = 'Not enough data yet.';
+      needsAttentionSubEl.textContent = 'Requires more activity across multiple habits.';
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.getHabitInsights = getHabitInsights;
+  window.renderHabitInsights = renderHabitInsights;
+}
 
 let activeHeatmapDateKey = null;
 

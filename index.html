@@ -224,6 +224,49 @@
       </div>
     </div>
 
+    <div class="hi-card" id="hiCard">
+      <div class="hi-header">
+        <div class="hi-title">🧠 Habit Insights</div>
+        <div class="hi-sub">Patterns & consistency derived from your activity</div>
+      </div>
+      <div class="hi-empty" id="hiEmpty" style="display:none">
+        <div class="hi-empty-icon">🧠</div>
+        <div class="hi-empty-title">Track your habits for a few days to unlock intelligent insights.</div>
+      </div>
+      <div class="hi-grid" id="hiGrid">
+        <div class="hi-item">
+          <div class="hi-item-lbl">⭐ Strongest Habit</div>
+          <div class="hi-item-val" id="hiStrongestHabit">—</div>
+          <div class="hi-item-sub" id="hiStrongestHabitSub">Highest completion rate</div>
+        </div>
+        <div class="hi-item">
+          <div class="hi-item-lbl">📅 Best Day</div>
+          <div class="hi-item-val" id="hiBestDay">—</div>
+          <div class="hi-item-sub" id="hiBestDaySub">Highest weekday completion rate</div>
+        </div>
+        <div class="hi-item">
+          <div class="hi-item-lbl">📊 Recent Trend</div>
+          <div class="hi-item-val" id="hiRecentTrend">—</div>
+          <div class="hi-item-sub" id="hiRecentTrendSub">Comparing recent to prior 7 days</div>
+        </div>
+        <div class="hi-item">
+          <div class="hi-item-lbl">🔥 Most Active Habit</div>
+          <div class="hi-item-val" id="hiMostActiveHabit">—</div>
+          <div class="hi-item-sub" id="hiMostActiveHabitSub">Most unique completion days</div>
+        </div>
+        <div class="hi-item">
+          <div class="hi-item-lbl">🎯 Overall Consistency</div>
+          <div class="hi-item-val" id="hiConsistency">—</div>
+          <div class="hi-item-sub" id="hiConsistencySub">Across eligible habit-days</div>
+        </div>
+        <div class="hi-item">
+          <div class="hi-item-lbl">💡 Needs Attention</div>
+          <div class="hi-item-val" id="hiNeedsAttention">—</div>
+          <div class="hi-item-sub" id="hiNeedsAttentionSub">Lowest completion rate</div>
+        </div>
+      </div>
+    </div>
+
     <div class="lbl">Last 12 weeks — Activity Heatmap</div>
     <div class="heatmap-wrap">
       <div class="heatmap-title"><span>🟩Heatmap</span><span style="font-size:10px;color:var(--muted);font-weight:400">Last 84 days</span></div>
