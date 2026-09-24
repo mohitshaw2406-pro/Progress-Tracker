@@ -26,6 +26,7 @@ const EMOJIS = ['🌅','💪','💻','📚','🎌','🏃','🧘','🎯','📖','
 const SUB_EMOJIS = ['🏋️','🏃','🤸','🏊','🚴','🧘','⚽','🏀','🎯','💪','🔥','⚡','📚','💻','🎸','🎨','🍎','🌿','🧠','✍️','📖','🎵','🚀','💡','🎮','🌙','🌅','🤼','🥊','🏇'];
 const COLORS = ['#7c5af5','#38bdf8','#34d399','#fbbf24','#fb7185','#f472b6','#fb923c','#a78bfa','#4ade80','#60a5fa'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAYS_S = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const QUOTES = [
   'Jo aaj kiya — kal ka future self thank karega.',
@@ -434,9 +435,17 @@ function renderToday() {
       <div class="hcard-chk" style="${isDone?'background:'+h.color+';border-color:'+h.color+';color:#fff':''}">${isDone?'✓':''}</div>
     `;
     if (hasSub) card.querySelector('.hcard-expand').addEventListener('click', e => { e.stopPropagation(); openSubTracker(h.id); });
-    card.addEventListener('click', () => toggleHabit(h.id));
+    const chk = card.querySelector('.hcard-chk');
+    chk.addEventListener('click', e => { e.stopPropagation(); toggleHabit(h.id); });
+    card.addEventListener('click', () => openHabitDetail(h.id));
     list.appendChild(card);
   });
+
+  if (activeDetailHabitId) {
+    const exists = S.habits.some(h => h.id === activeDetailHabitId);
+    if (!exists) closeHabitDetail();
+    else renderHabitDetail(activeDetailHabitId);
+  }
 }
 
 function toggleHabit(id) {
@@ -714,6 +723,258 @@ function saveSubItem() {
   if (h) { setSubTab(subActiveTab); renderSubHero(h); }
 }
 
+// ===================== HABIT DETAIL VIEW =====================
+let activeDetailHabitId = null;
+
+function calcHabitCurrentStreak(habitId) {
+  const d = new Date(today());
+  d.setHours(0, 0, 0, 0);
+  const tk = dkey(d);
+  const doneToday = getDone(tk).includes(habitId);
+
+  let streak = 0;
+  if (doneToday) {
+    streak = 1;
+    d.setDate(d.getDate() - 1);
+  } else {
+    d.setDate(d.getDate() - 1);
+  }
+
+  while (streak < 9999) {
+    const k = dkey(d);
+    if (getDone(k).includes(habitId)) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function calcHabitBestStreak(habitId) {
+  const dates = Object.keys(S.history || {})
+    .filter(k => getDone(k).includes(habitId))
+    .sort();
+
+  if (dates.length === 0) return 0;
+
+  let maxStreak = 0;
+  let curStreak = 0;
+  let prevDate = null;
+
+  for (const dateStr of dates) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const curDate = new Date(y, m - 1, d);
+    curDate.setHours(0, 0, 0, 0);
+
+    if (!prevDate) {
+      curStreak = 1;
+    } else {
+      const diffMs = curDate.getTime() - prevDate.getTime();
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        curStreak++;
+      } else if (diffDays > 1) {
+        curStreak = 1;
+      }
+    }
+    if (curStreak > maxStreak) maxStreak = curStreak;
+    prevDate = curDate;
+  }
+
+  const currentStreak = calcHabitCurrentStreak(habitId);
+  return Math.max(maxStreak, currentStreak);
+}
+
+function getHabitStats(habitId) {
+  const completedDates = Object.keys(S.history || {})
+    .filter(k => getDone(k).includes(habitId))
+    .sort();
+
+  const totalCompletions = completedDates.length;
+  const currentStreak = calcHabitCurrentStreak(habitId);
+  const bestStreak = calcHabitBestStreak(habitId);
+
+  let completionRatePct = null;
+  let lastCompletedStr = 'Not completed yet';
+
+  if (totalCompletions > 0) {
+    const earliestKey = completedDates[0];
+    const [ey, em, ed] = earliestKey.split('-').map(Number);
+    const startDate = new Date(ey, em - 1, ed);
+    startDate.setHours(0, 0, 0, 0);
+
+    const todayDate = new Date(today());
+    todayDate.setHours(0, 0, 0, 0);
+
+    const msDiff = todayDate.getTime() - startDate.getTime();
+    const daysSpan = Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24)) + 1);
+    const denominator = Math.max(totalCompletions, daysSpan);
+    completionRatePct = Math.min(100, Math.round((totalCompletions / denominator) * 100));
+
+    const latestKey = completedDates[completedDates.length - 1];
+    const [ly, lm, ld] = latestKey.split('-').map(Number);
+    const formattedDate = `${ld} ${MONTHS_SHORT[lm - 1]} ${ly}`;
+    if (latestKey === todayKey()) {
+      lastCompletedStr = `Today (${formattedDate})`;
+    } else {
+      lastCompletedStr = formattedDate;
+    }
+  }
+
+  return {
+    totalCompletions,
+    currentStreak,
+    bestStreak,
+    completionRatePct,
+    lastCompletedStr,
+    completedDates
+  };
+}
+
+function openHabitDetail(habitId) {
+  const h = S.habits.find(x => x.id === habitId);
+  if (!h) return;
+  activeDetailHabitId = habitId;
+  renderHabitDetail(habitId);
+  const overlay = document.getElementById('habitDetailOverlay');
+  if (overlay) overlay.classList.add('open');
+}
+
+function closeHabitDetail() {
+  activeDetailHabitId = null;
+  const overlay = document.getElementById('habitDetailOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function renderHabitDetail(habitId) {
+  const h = S.habits.find(x => x.id === habitId);
+  if (!h) {
+    closeHabitDetail();
+    return;
+  }
+
+  const tk = todayKey();
+  const isDoneToday = getDone(tk).includes(habitId);
+  const stats = getHabitStats(habitId);
+  const subItems = getSubItems(h.id);
+  const subDone = getSubDone(h.id, tk);
+  const hasSub = subItems.length > 0;
+
+  const title = `${h.icon} ${h.name}`;
+  const navTitleEl = document.getElementById('hdNavTitle');
+  if (navTitleEl) navTitleEl.textContent = title;
+
+  let historyRowsHtml = '';
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(today());
+    d.setDate(d.getDate() - i);
+    const dk = dkey(d);
+    const isDone = getDone(dk).includes(habitId);
+    const isToday = i === 0;
+    const isYesterday = i === 1;
+    const dateFormatted = `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+    const dayTag = isToday ? 'Today' : (isYesterday ? 'Yesterday' : DAYS_S[d.getDay()]);
+
+    historyRowsHtml += `
+      <div class="hd-history-row">
+        <div class="hd-history-date">
+          <span>${dateFormatted}</span>
+          <span class="hd-history-daytag${isToday ? ' today' : ''}">${dayTag}</span>
+        </div>
+        <div class="hd-history-status ${isDone ? 'done' : 'missed'}">
+          ${isDone ? '✓ Done' : '—'}
+        </div>
+      </div>
+    `;
+  }
+
+  const contentEl = document.getElementById('hdContent');
+  if (!contentEl) return;
+
+  const emptyBannerHtml = stats.totalCompletions === 0 ? `
+    <div class="hd-empty">
+      <div class="hd-empty-icon">🌱</div>
+      <div class="hd-empty-title">No completion history yet</div>
+      <div class="hd-empty-desc">Complete this habit to start building streaks and tracking your consistency over time.</div>
+    </div>
+  ` : '';
+
+  contentEl.innerHTML = `
+    <div class="hd-hero">
+      <div class="hd-hero-main">
+        <div class="hd-hero-ico" style="background:${h.color}25">${h.icon}</div>
+        <div class="hd-hero-info">
+          <div class="hd-hero-title">${h.name}</div>
+          <div class="hd-hero-sub">Your history with this habit</div>
+          ${h.sub ? `<div class="hd-hero-desc">${h.sub}</div>` : ''}
+        </div>
+      </div>
+      <div class="hd-hero-actions">
+        ${hasSub ? `<button class="hd-today-btn" id="hdSubBtn" style="color:var(--blu);border-color:var(--border2)">📋 Items (${subDone.length}/${subItems.length})</button>` : ''}
+        <button class="hd-today-btn ${isDoneToday ? 'done' : ''}" id="hdToggleToday">
+          ${isDoneToday ? '✓ Done Today' : '○ Mark Done Today'}
+        </button>
+      </div>
+    </div>
+
+    ${emptyBannerHtml}
+
+    <div class="lbl">Habit Statistics</div>
+    <div class="hd-grid">
+      <div class="hd-stat">
+        <div class="hd-stat-lbl">🔥 Current Streak</div>
+        <div class="hd-stat-val">${stats.currentStreak} ${stats.currentStreak === 1 ? 'day' : 'days'}</div>
+      </div>
+      <div class="hd-stat">
+        <div class="hd-stat-lbl">🏆 Best Streak</div>
+        <div class="hd-stat-val">${stats.totalCompletions > 0 ? `${stats.bestStreak} ${stats.bestStreak === 1 ? 'day' : 'days'}` : 'No record yet'}</div>
+      </div>
+      <div class="hd-stat">
+        <div class="hd-stat-lbl">✅ Total Completions</div>
+        <div class="hd-stat-val">${stats.totalCompletions} ${stats.totalCompletions === 1 ? 'day' : 'days'}</div>
+      </div>
+      <div class="hd-stat">
+        <div class="hd-stat-lbl">📊 Completion Rate</div>
+        <div class="hd-stat-val">${stats.completionRatePct !== null ? `${stats.completionRatePct}%` : 'No history'}</div>
+      </div>
+    </div>
+
+    <div class="hd-recent-card">
+      <div class="hd-recent-lbl">📅 Recent Activity</div>
+      <div class="hd-recent-val">${stats.lastCompletedStr === 'Not completed yet' ? 'Not completed yet' : 'Last completed: ' + stats.lastCompletedStr}</div>
+    </div>
+
+    <div class="hd-history-card">
+      <div class="hd-history-head">
+        <div class="hd-history-title">Completion History</div>
+        <div class="hd-history-sub">Last 30 days</div>
+      </div>
+      <div class="hd-history-list">
+        ${historyRowsHtml}
+      </div>
+    </div>
+  `;
+
+  const toggleBtn = document.getElementById('hdToggleToday');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      toggleHabit(habitId);
+    };
+  }
+
+  const subBtn = document.getElementById('hdSubBtn');
+  if (subBtn) {
+    subBtn.onclick = () => {
+      openSubTracker(habitId);
+    };
+  }
+}
+
+window.openHabitDetail = openHabitDetail;
+window.closeHabitDetail = closeHabitDetail;
+
 // ===================== WEEKLY =====================
 let wkOffset = 0;
 function getWeekDays(offset) {
@@ -792,8 +1053,6 @@ function renderMonthly() {
 }
 
 // ===================== PERSONAL RECORDS =====================
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
 function renderPersonalRecords() {
   const card = document.getElementById('prCard');
   if (!card) return;
@@ -1017,13 +1276,17 @@ function renderManage() {
     const subCount=getSubItems(h.id).length;
     const row=document.createElement('div'); row.className='mng-row';
     row.innerHTML=`
-      <div class="mng-ico" style="background:${h.color}20">${h.icon}</div>
-      <div style="flex:1"><div class="mng-name">${h.name}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${h.sub||'No description'}${subCount>0?` · <span style="color:${h.color}">${subCount} items</span>`:''}</div></div>
+      <div class="mng-ico" style="background:${h.color}20;cursor:pointer" title="View details">${h.icon}</div>
+      <div style="flex:1;cursor:pointer" class="mng-info-wrap"><div class="mng-name">${h.name}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${h.sub||'No description'}${subCount>0?` · <span style="color:${h.color}">${subCount} items</span>`:''}</div></div>
       <div class="mng-actions">
+        <button class="mng-edit mng-stat-btn" data-id="${h.id}" style="color:var(--pur2)">📊 Stats</button>
         <button class="mng-edit mng-edit-btn" data-id="${h.id}">✏️ Edit</button>
         <button class="mng-edit mng-sub-btn" data-id="${h.id}" style="color:var(--blu)">📋 Items</button>
         <button class="mng-del mng-del-btn" data-id="${h.id}">🗑</button>
       </div>`;
+    row.querySelector('.mng-stat-btn').addEventListener('click', () => openHabitDetail(h.id));
+    row.querySelector('.mng-ico').addEventListener('click', () => openHabitDetail(h.id));
+    row.querySelector('.mng-info-wrap').addEventListener('click', () => openHabitDetail(h.id));
     row.querySelector('.mng-del-btn').addEventListener('click', () => deleteHabit(h.id));
     row.querySelector('.mng-edit-btn').addEventListener('click', () => openEditModal(h.id));
     row.querySelector('.mng-sub-btn').addEventListener('click', () => openSubTracker(h.id));
@@ -1034,6 +1297,9 @@ function renderManage() {
 function deleteHabit(id) {
   if (!confirm('Yeh habit delete karna chahte ho?')) return;
   S.habits = S.habits.filter(h => h.id !== id);
+  if (activeDetailHabitId === id) {
+    closeHabitDetail();
+  }
   saveToFirebase(); renderManage(); renderToday();
   toast('Habit delete ho gayi 🗑');
 }
@@ -1213,6 +1479,10 @@ document.getElementById('moPrev').addEventListener('click', ()=>{moOffset--; ren
 document.getElementById('moNext').addEventListener('click', ()=>{moOffset++; renderMonthly();});
 document.getElementById('mName').addEventListener('keydown', e=>{if(e.key==='Enter') saveHabit();});
 document.getElementById('subBack').addEventListener('click', closeSubTracker);
+document.getElementById('habitDetailBack').addEventListener('click', closeHabitDetail);
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && activeDetailHabitId) closeHabitDetail();
+});
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);
 document.getElementById('saveSubItemBtn').addEventListener('click', saveSubItem);
 document.getElementById('subItemOverlay').addEventListener('click', e=>{if(e.target===document.getElementById('subItemOverlay')) closeSubItemModal();});
