@@ -85,6 +85,7 @@ let S = getInitialState();
 
 function resetState() {
   S = getInitialState();
+  renderPersonalRecords();
 }
 
 // ===================== FIREBASE DATA SYNC =====================
@@ -398,6 +399,7 @@ function renderToday() {
   document.getElementById('statDone').textContent = done.length + (total ? '/'+total : '');
   renderLevel();
   renderTodayCommandCenter();
+  renderPersonalRecords();
 
   const list = document.getElementById('habitsList');
   list.innerHTML = '';
@@ -789,8 +791,169 @@ function renderMonthly() {
   });
 }
 
+// ===================== PERSONAL RECORDS =====================
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function renderPersonalRecords() {
+  const card = document.getElementById('prCard');
+  if (!card) return;
+
+  const emptyEl = document.getElementById('prEmpty');
+  const gridEl = document.getElementById('prGrid');
+
+  let totalCompletions = 0;
+  const historyKeys = Object.keys(S.history || {});
+  historyKeys.forEach(k => {
+    totalCompletions += [...new Set(getDone(k))].length;
+  });
+
+  if (totalCompletions === 0) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (gridEl) gridEl.style.display = 'none';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (gridEl) gridEl.style.display = 'grid';
+
+  // 1. Longest Streak
+  const datesWithDone = historyKeys.filter(k => getDone(k).length > 0);
+  let longestStreak = 0;
+
+  if (datesWithDone.length > 0) {
+    datesWithDone.sort();
+    const [sy, sm, sd] = datesWithDone[0].split('-').map(Number);
+    const cur = new Date(sy, sm - 1, sd);
+    cur.setHours(0, 0, 0, 0);
+
+    const end = today();
+    end.setHours(0, 0, 0, 0);
+    const tk = todayKey();
+
+    let curRun = 0;
+    while (cur <= end) {
+      const k = dkey(cur);
+      const done = getDone(k);
+      const isStreakDay = (k === tk) ? (done.length > 0) : (S.habits.length > 0 && done.length >= S.habits.length);
+
+      if (isStreakDay) {
+        curRun++;
+        if (curRun > longestStreak) longestStreak = curRun;
+      } else {
+        curRun = 0;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+
+  const currentStreak = calcStreak();
+  longestStreak = Math.max(longestStreak, currentStreak);
+
+  const longestStreakEl = document.getElementById('prLongestStreak');
+  if (longestStreakEl) {
+    longestStreakEl.textContent = longestStreak > 0 ? `${longestStreak} ${longestStreak === 1 ? 'day' : 'days'}` : 'No record yet';
+  }
+
+  // 2. Current Streak
+  const currentStreakEl = document.getElementById('prCurrentStreak');
+  if (currentStreakEl) {
+    currentStreakEl.textContent = `${currentStreak} ${currentStreak === 1 ? 'day' : 'days'}`;
+  }
+
+  // 3. Best Day
+  let maxHabitsDone = 0;
+  let bestDayKey = null;
+
+  historyKeys.forEach(k => {
+    const done = [...new Set(getDone(k))];
+    if (done.length > maxHabitsDone) {
+      maxHabitsDone = done.length;
+      bestDayKey = k;
+    } else if (done.length === maxHabitsDone && maxHabitsDone > 0 && k > bestDayKey) {
+      bestDayKey = k;
+    }
+  });
+
+  const bestDayEl = document.getElementById('prBestDay');
+  if (bestDayEl) {
+    if (maxHabitsDone > 0 && bestDayKey) {
+      const [by, bm, bd] = bestDayKey.split('-').map(Number);
+      bestDayEl.textContent = `${maxHabitsDone} ${maxHabitsDone === 1 ? 'habit' : 'habits'} · ${bd} ${MONTHS_SHORT[bm - 1] || ''} ${by}`;
+    } else {
+      bestDayEl.textContent = 'No record yet';
+    }
+  }
+
+  // 4. Most Consistent Day
+  let maxPct = 0;
+  let bestPctKey = null;
+
+  historyKeys.forEach(k => {
+    const done = [...new Set(getDone(k))];
+    if (done.length > 0) {
+      const dayHabits = new Set([...S.habits.map(h => h.id), ...done]);
+      const denominator = Math.max(1, dayHabits.size);
+      const pct = Math.min(100, Math.round((done.length / denominator) * 100));
+      if (pct > maxPct) {
+        maxPct = pct;
+        bestPctKey = k;
+      } else if (pct === maxPct && maxPct > 0 && k > bestPctKey) {
+        bestPctKey = k;
+      }
+    }
+  });
+
+  const consistentDayEl = document.getElementById('prConsistentDay');
+  if (consistentDayEl) {
+    if (maxPct > 0 && bestPctKey) {
+      const [cy, cm, cd] = bestPctKey.split('-').map(Number);
+      consistentDayEl.textContent = `${maxPct}% · ${cd} ${MONTHS_SHORT[cm - 1] || ''} ${cy}`;
+    } else {
+      consistentDayEl.textContent = 'No record yet';
+    }
+  }
+
+  // 5. Total Completions
+  const totalCompletionsEl = document.getElementById('prTotalCompletions');
+  if (totalCompletionsEl) {
+    totalCompletionsEl.textContent = `${totalCompletions.toLocaleString()} ${totalCompletions === 1 ? 'completion' : 'completions'}`;
+  }
+
+  // 6. Most Active Month
+  const monthCounts = {};
+  historyKeys.forEach(k => {
+    const doneCount = [...new Set(getDone(k))].length;
+    if (doneCount > 0 && k.length >= 7) {
+      const ym = k.slice(0, 7);
+      monthCounts[ym] = (monthCounts[ym] || 0) + doneCount;
+    }
+  });
+
+  let maxMonthKey = null;
+  let maxMonthCompletions = 0;
+  Object.entries(monthCounts).forEach(([ym, count]) => {
+    if (count > maxMonthCompletions) {
+      maxMonthCompletions = count;
+      maxMonthKey = ym;
+    } else if (count === maxMonthCompletions && maxMonthCompletions > 0 && ym > maxMonthKey) {
+      maxMonthKey = ym;
+    }
+  });
+
+  const activeMonthEl = document.getElementById('prActiveMonth');
+  if (activeMonthEl) {
+    if (maxMonthCompletions > 0 && maxMonthKey) {
+      const [my, mm] = maxMonthKey.split('-').map(Number);
+      const mName = MONTHS[mm - 1] || '';
+      activeMonthEl.textContent = `${mName} ${my} · ${maxMonthCompletions} ${maxMonthCompletions === 1 ? 'completion' : 'completions'}`;
+    } else {
+      activeMonthEl.textContent = 'No record yet';
+    }
+  }
+}
+
 // ===================== STATS =====================
-function renderStats() { renderHeatmap(); renderPieChart(); renderTopHabits(); renderLineChart(); }
+function renderStats() { renderPersonalRecords(); renderHeatmap(); renderPieChart(); renderTopHabits(); renderLineChart(); }
 
 function renderHeatmap() {
   const grid=document.getElementById('hmGrid'); grid.innerHTML='';
