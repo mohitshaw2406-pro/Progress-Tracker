@@ -150,7 +150,22 @@
       </div>
     </div>
 
-    <div class="lbl">Habits</div>
+    <div class="habits-header">
+      <div class="lbl" style="margin-bottom: 0;">Habits</div>
+      <button type="button" class="quick-add-toggle" id="quickAddToggleBtn" aria-expanded="false" aria-controls="quickAddBox">+ Quick Add</button>
+    </div>
+
+    <div class="quick-add-box" id="quickAddBox" style="display: none;" role="region" aria-label="Quick Add Habit">
+      <form id="quickAddForm" class="quick-add-form" onsubmit="return false;">
+        <label for="quickAddInput" class="quick-add-label">Habit Name</label>
+        <input type="text" id="quickAddInput" class="quick-add-input" placeholder="e.g. Read 10 pages, Drink water, Workout..." maxlength="60" autocomplete="off" />
+        <div class="quick-add-actions">
+          <button type="button" class="quick-add-cancel" id="quickAddCancelBtn">Cancel</button>
+          <button type="submit" class="quick-add-submit" id="quickAddSubmitBtn">Add Habit</button>
+        </div>
+      </form>
+    </div>
+
     <div class="habits" id="habitsList"></div>
     <button class="add-habit-btn" id="openModalBtn">+ Add New Habit</button>
   </div>

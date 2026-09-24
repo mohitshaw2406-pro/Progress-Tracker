@@ -94,6 +94,7 @@ function resetState() {
   lastToggledAction = null;
   lastAddedHabitId = null;
   prevTccPct = null;
+  if (typeof closeQuickAdd === 'function') closeQuickAdd();
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
   renderHabitInsights();
@@ -2052,24 +2053,123 @@ function buildModalPickers() {
 
 function closeModal() { document.getElementById('overlay').classList.remove('open'); }
 
+function createAndSaveHabit(name, sub = '', icon = null, color = null) {
+  const trimmedName = (name || '').trim();
+  if (!trimmedName) {
+    toast('Naam toh dalo bhai! 🙏');
+    return false;
+  }
+
+  const id = 'h_' + Date.now();
+  lastAddedHabitId = id;
+
+  const habitIcon = icon || EMOJIS[S.habits.length % EMOJIS.length] || '🎯';
+  const habitColor = color || COLORS[S.habits.length % COLORS.length] || '#7c5af5';
+
+  S.habits.push({
+    id,
+    name: trimmedName.slice(0, 60),
+    sub: (sub || '').trim(),
+    icon: habitIcon,
+    color: habitColor
+  });
+
+  saveToFirebase();
+  renderToday();
+  renderManage();
+
+  setTimeout(() => {
+    if (lastAddedHabitId === id) lastAddedHabitId = null;
+  }, 500);
+
+  toast('Nai habit add ho gayi! 🎯');
+  return true;
+}
+
 function saveHabit() {
   const name=document.getElementById('mName').value.trim();
   if (!name) { toast('Naam toh dalo bhai! 🙏'); return; }
   if (editingId) {
     const h=S.habits.find(x=>x.id===editingId);
-    if (h) { h.name=name; h.sub=document.getElementById('mSub').value.trim(); h.icon=selEmoji; h.color=selColor; }
+    if (h) { h.name=name.slice(0, 60); h.sub=document.getElementById('mSub').value.trim(); h.icon=selEmoji; h.color=selColor; }
     saveToFirebase(); closeModal(); renderToday(); renderManage();
     toast('Habit update ho gayi! ✏️');
   } else {
-    const id='h_'+Date.now();
-    lastAddedHabitId = id;
-    S.habits.push({id,name,sub:document.getElementById('mSub').value.trim(),icon:selEmoji,color:selColor});
-    saveToFirebase(); closeModal(); renderToday(); renderManage();
-    setTimeout(() => {
-      if (lastAddedHabitId === id) lastAddedHabitId = null;
-    }, 500);
-    toast('Nai habit add ho gayi! 🎯');
+    closeModal();
+    createAndSaveHabit(name, document.getElementById('mSub').value, selEmoji, selColor);
   }
+}
+
+// ===================== QUICK ADD HABIT =====================
+function isQuickAddOpen() {
+  const box = document.getElementById('quickAddBox');
+  return box && box.style.display !== 'none';
+}
+
+function openQuickAdd() {
+  const box = document.getElementById('quickAddBox');
+  const btn = document.getElementById('quickAddToggleBtn');
+  const input = document.getElementById('quickAddInput');
+  if (!box) return;
+
+  box.style.display = 'block';
+  if (btn) {
+    btn.setAttribute('aria-expanded', 'true');
+    btn.style.display = 'none';
+  }
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 60);
+  }
+}
+
+function closeQuickAdd() {
+  const box = document.getElementById('quickAddBox');
+  const btn = document.getElementById('quickAddToggleBtn');
+  const input = document.getElementById('quickAddInput');
+  if (!box) return;
+
+  box.style.display = 'none';
+  if (btn) {
+    btn.setAttribute('aria-expanded', 'false');
+    btn.style.display = 'inline-flex';
+  }
+  if (input) {
+    input.value = '';
+  }
+}
+
+let isSubmittingQuickAdd = false;
+
+function submitQuickAdd() {
+  if (isSubmittingQuickAdd) return;
+  const input = document.getElementById('quickAddInput');
+  if (!input) return;
+
+  const name = input.value.trim();
+  if (!name) {
+    toast('Naam toh dalo bhai! 🙏');
+    input.focus();
+    return;
+  }
+
+  isSubmittingQuickAdd = true;
+  try {
+    const success = createAndSaveHabit(name);
+    if (success) {
+      input.value = '';
+      closeQuickAdd();
+    }
+  } finally {
+    isSubmittingQuickAdd = false;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.openQuickAdd = openQuickAdd;
+  window.closeQuickAdd = closeQuickAdd;
+  window.submitQuickAdd = submitQuickAdd;
+  window.createAndSaveHabit = createAndSaveHabit;
 }
 
 // ===================== NAV =====================
@@ -2078,6 +2178,7 @@ function showPage(pg) {
   document.querySelectorAll('.tab').forEach(el=>el.classList.remove('on'));
   document.getElementById('pg-'+pg).classList.add('on');
   document.querySelector(`[data-pg="${pg}"]`).classList.add('on');
+  if (pg !== 'today') closeQuickAdd();
   if (pg==='weekly') renderWeekly();
   if (pg==='monthly') renderMonthly();
   if (pg==='manage') renderManage();
@@ -2202,11 +2303,28 @@ document.getElementById('subBack').addEventListener('click', closeSubTracker);
 document.getElementById('habitDetailBack').addEventListener('click', closeHabitDetail);
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if (activeDetailHabitId) {
+    if (isQuickAddOpen()) {
+      closeQuickAdd();
+    } else if (activeDetailHabitId) {
       closeHabitDetail();
     } else if (activeHeatmapDateKey) {
       clearHeatmapSelection();
     }
+  }
+});
+document.getElementById('quickAddToggleBtn')?.addEventListener('click', openQuickAdd);
+document.getElementById('quickAddCancelBtn')?.addEventListener('click', closeQuickAdd);
+document.getElementById('quickAddForm')?.addEventListener('submit', e => {
+  e.preventDefault();
+  submitQuickAdd();
+});
+document.getElementById('quickAddInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitQuickAdd();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeQuickAdd();
   }
 });
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);

@@ -82,6 +82,32 @@ nav{position:sticky;top:0;z-index:50;background:#07070acc;backdrop-filter:blur(1
 .tcc-complete-banner{margin-top:12px;padding:10px 14px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);border-radius:12px;color:var(--grn);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;animation:bannerFade 0.28s cubic-bezier(0.16,1,0.3,1)}
 @keyframes bannerFade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 
+/* QUICK ADD HABIT */
+.habits-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.quick-add-toggle{background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:5px 12px;color:var(--pur2);font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all .18s ease;display:inline-flex;align-items:center;gap:4px}
+.quick-add-toggle:hover{background:#7c5af518;border-color:var(--pur2);transform:scale(1.02)}
+.quick-add-toggle:active{transform:scale(0.96)}
+.quick-add-toggle:focus-visible{outline:2px solid var(--pur2);outline-offset:2px}
+
+.quick-add-box{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:12px;animation:qaEntrance 0.22s cubic-bezier(0.16,1,0.3,1)}
+@keyframes qaEntrance{from{opacity:0;transform:translateY(-8px) scale(0.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.quick-add-label{display:block;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px}
+.quick-add-input{width:100%;background:var(--s3);border:1px solid var(--border2);border-radius:12px;padding:11px 14px;color:var(--txt);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s ease,box-shadow .2s ease;margin-bottom:12px}
+.quick-add-input:focus{border-color:var(--pur2);box-shadow:0 0 0 3px rgba(124,90,245,0.2)}
+.quick-add-input::placeholder{color:var(--muted)}
+
+.quick-add-actions{display:flex;gap:8px;justify-content:flex-end}
+.quick-add-submit{background:linear-gradient(135deg,var(--pur),var(--blu));border:none;border-radius:10px;padding:9px 18px;color:#fff;font-size:12px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:opacity .18s ease,transform .14s ease}
+.quick-add-submit:hover{opacity:.92;transform:translateY(-1px)}
+.quick-add-submit:active{transform:scale(0.96)}
+.quick-add-submit:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+.quick-add-cancel{background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:9px 15px;color:var(--muted);font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all .18s ease}
+.quick-add-cancel:hover{background:var(--s3);color:var(--txt);border-color:var(--border)}
+.quick-add-cancel:active{transform:scale(0.96)}
+.quick-add-cancel:focus-visible{outline:2px solid var(--pur2);outline-offset:2px}
+
 /* HABIT CARDS */
 .habits{display:flex;flex-direction:column;gap:10px;margin-bottom:1.25rem}
 .hcard{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:16px;cursor:pointer;transition:transform 0.18s cubic-bezier(0.2,0,0,1),border-color 0.2s,background 0.2s,box-shadow 0.2s;user-select:none;display:flex;align-items:center;gap:14px;position:relative;overflow:hidden}
@@ -512,6 +538,8 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
 }
 
 @media(max-width:600px){
+  .quick-add-actions{width:100%}
+  .quick-add-submit,.quick-add-cancel{flex:1;padding:10px 12px;text-align:center}
   .today-cc{padding:1.1rem 1rem}
   .tcc-date{font-size:16px}
   .pr-card{padding:1.1rem 1rem}
@@ -557,7 +585,10 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
   .hd-back:hover, .hd-back:active,
   .hd-today-btn:hover, .hd-today-btn:active,
   .mng-edit:hover, .mng-edit:active,
-  .mng-del:hover, .mng-del:active {
+  .mng-del:hover, .mng-del:active,
+  .quick-add-toggle:hover, .quick-add-toggle:active,
+  .quick-add-submit:hover, .quick-add-submit:active,
+  .quick-add-cancel:hover, .quick-add-cancel:active {
     transform: none !important;
   }
   .toast {
