@@ -86,6 +86,7 @@ let S = getInitialState();
 
 function resetState() {
   S = getInitialState();
+  if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
 }
 
@@ -445,6 +446,10 @@ function renderToday() {
     const exists = S.habits.some(h => h.id === activeDetailHabitId);
     if (!exists) closeHabitDetail();
     else renderHabitDetail(activeDetailHabitId);
+  }
+
+  if (activeHeatmapDateKey) {
+    renderHeatmapDayDetails(activeHeatmapDateKey);
   }
 }
 
@@ -1214,20 +1219,278 @@ function renderPersonalRecords() {
 // ===================== STATS =====================
 function renderStats() { renderPersonalRecords(); renderHeatmap(); renderPieChart(); renderTopHabits(); renderLineChart(); }
 
-function renderHeatmap() {
-  const grid=document.getElementById('hmGrid'); grid.innerHTML='';
-  const now=today(),startDate=new Date(now); startDate.setDate(startDate.getDate()-83);
-  while (startDate.getDay()!==0) startDate.setDate(startDate.getDate()-1);
-  const cur=new Date(startDate); let weekEl=null;
-  while (cur<=now) {
-    if (cur.getDay()===0) { weekEl=document.createElement('div'); weekEl.className='hm-week'; grid.appendChild(weekEl); }
-    const k=dkey(cur),isFuture=cur>now,done=getDone(k),pct=S.habits.length&&!isFuture?done.length/S.habits.length:0;
-    const lvl=isFuture?'future':pct===0?'l0':pct<0.25?'l1':pct<0.5?'l2':pct<0.75?'l3':'l4';
-    const cell=document.createElement('div'); cell.className='hm-cell '+lvl;
-    cell.title=isFuture?'Future':`${cur.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}: ${done.length}/${S.habits.length} done`;
-    weekEl.appendChild(cell); cur.setDate(cur.getDate()+1);
+let activeHeatmapDateKey = null;
+
+function getDayDetailsData(dateKey) {
+  if (!dateKey || typeof dateKey !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return null;
+  }
+
+  const rawDone = getDone(dateKey) || [];
+  const doneIds = [...new Set(rawDone)];
+
+  const completedHabits = [];
+  doneIds.forEach(id => {
+    const existing = S.habits.find(h => h.id === id);
+    if (existing) {
+      completedHabits.push(existing);
+    } else {
+      completedHabits.push({
+        id,
+        name: `Habit (${id})`,
+        icon: '📌',
+        color: '#8b8ba7',
+        isDeleted: true
+      });
+    }
+  });
+
+  const allHistoryDatesWithDone = Object.keys(S.history || {})
+    .filter(k => (getDone(k) || []).length > 0)
+    .sort();
+  const earliestDateWithDone = allHistoryDatesWithDone[0] || null;
+
+  const isToday = (dateKey === todayKey());
+  const isBeforeAnyTracking = earliestDateWithDone && (dateKey < earliestDateWithDone);
+
+  const incompleteHabits = [];
+  if (isToday || !isBeforeAnyTracking) {
+    S.habits.forEach(h => {
+      if (doneIds.includes(h.id)) return;
+
+      if (h.id && h.id.startsWith('h_')) {
+        const ts = parseInt(h.id.slice(2), 10);
+        if (!isNaN(ts) && ts > 1500000000000) {
+          const habitCreatedDate = new Date(ts);
+          const habitCreatedKey = dkey(habitCreatedDate);
+          if (dateKey < habitCreatedKey) {
+            return;
+          }
+        }
+      }
+
+      incompleteHabits.push(h);
+    });
+  }
+
+  const totalEligible = completedHabits.length + incompleteHabits.length;
+  const pct = totalEligible > 0 ? Math.min(100, Math.round((completedHabits.length / totalEligible) * 100)) : 0;
+
+  return {
+    dateKey,
+    completedHabits,
+    incompleteHabits,
+    totalEligible,
+    pct,
+    isToday,
+    hasNoCompletions: completedHabits.length === 0
+  };
+}
+
+function selectHeatmapDate(dateKey) {
+  activeHeatmapDateKey = dateKey;
+
+  const grid = document.getElementById('hmGrid');
+  if (grid) {
+    grid.querySelectorAll('.hm-cell').forEach(cell => {
+      if (cell.dataset.date === dateKey) {
+        cell.classList.add('selected');
+        cell.setAttribute('aria-selected', 'true');
+      } else {
+        cell.classList.remove('selected');
+        cell.removeAttribute('aria-selected');
+      }
+    });
+  }
+
+  renderHeatmapDayDetails(dateKey);
+
+  const detailsEl = document.getElementById('hmDayDetails');
+  if (detailsEl) {
+    const rect = detailsEl.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    if (rect.bottom > vh || rect.top < 0) {
+      detailsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 }
+
+function clearHeatmapSelection() {
+  activeHeatmapDateKey = null;
+  const grid = document.getElementById('hmGrid');
+  if (grid) {
+    grid.querySelectorAll('.hm-cell').forEach(cell => {
+      cell.classList.remove('selected');
+      cell.removeAttribute('aria-selected');
+    });
+  }
+  const detailsEl = document.getElementById('hmDayDetails');
+  if (detailsEl) {
+    detailsEl.style.display = 'none';
+    detailsEl.innerHTML = '';
+  }
+}
+
+function renderHeatmapDayDetails(dateKey) {
+  const detailsEl = document.getElementById('hmDayDetails');
+  if (!detailsEl) return;
+
+  const data = getDayDetailsData(dateKey);
+  if (!data) {
+    clearHeatmapSelection();
+    return;
+  }
+
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const formattedDate = `${d} ${MONTHS[m - 1] || ''} ${y}`;
+  const title = `📅 ${formattedDate}`;
+
+  let completedHtml = '';
+  if (data.completedHabits.length === 0) {
+    completedHtml = '<div class="hm-day-empty-state">🌱 No habits completed on this day.</div>';
+  } else {
+    completedHtml = '<div class="hm-day-habit-list">' +
+      data.completedHabits.map(h => {
+        const canClick = !h.isDeleted && S.habits.some(x => x.id === h.id);
+        return `
+          <div class="hm-day-habit-item${canClick ? ' clickable' : ''}" data-id="${h.id}" title="${canClick ? 'View habit detail' : 'Deleted habit'}">
+            <span class="hm-day-habit-ico">${h.icon}</span>
+            <span class="hm-day-habit-name">${h.name}</span>
+            ${canClick ? '<span class="hm-day-habit-tag">›</span>' : '<span class="hm-day-habit-tag">(deleted)</span>'}
+          </div>
+        `;
+      }).join('') +
+      '</div>';
+  }
+
+  let incompleteHtml = '';
+  if (data.hasNoCompletions && data.incompleteHabits.length === 0) {
+    incompleteHtml = '<div class="hm-day-empty-state">No incomplete habits recorded.</div>';
+  } else if (data.incompleteHabits.length === 0 && data.completedHabits.length > 0) {
+    incompleteHtml = '<div class="hm-day-all-done">🎉 All eligible habits completed!</div>';
+  } else {
+    incompleteHtml = '<div class="hm-day-habit-list">' +
+      data.incompleteHabits.map(h => {
+        const canClick = S.habits.some(x => x.id === h.id);
+        return `
+          <div class="hm-day-habit-item${canClick ? ' clickable' : ''}" data-id="${h.id}" title="View habit detail">
+            <span class="hm-day-habit-ico">${h.icon}</span>
+            <span class="hm-day-habit-name">${h.name}</span>
+            <span class="hm-day-habit-tag">›</span>
+          </div>
+        `;
+      }).join('') +
+      '</div>';
+  }
+
+  detailsEl.innerHTML = `
+    <div class="hm-day-header">
+      <div class="hm-day-title">${title}</div>
+      <button type="button" class="hm-day-clear" id="hmClearDayBtn" aria-label="Clear selection" title="Clear selection">✕ Clear</button>
+    </div>
+
+    <div class="hm-day-summary">
+      <div class="hm-day-summary-left">
+        <div class="hm-day-summary-lbl">Completion Summary</div>
+        <div class="hm-day-summary-val">${data.completedHabits.length} / ${data.totalEligible} habits completed</div>
+      </div>
+      <div class="hm-day-summary-pct">${data.pct}% complete</div>
+    </div>
+
+    <div class="hm-day-lists">
+      <div class="hm-day-sec">
+        <div class="hm-day-sec-title done">✅ Completed (${data.completedHabits.length})</div>
+        ${completedHtml}
+      </div>
+      <div class="hm-day-sec">
+        <div class="hm-day-sec-title missed">⭕ Not Completed (${data.incompleteHabits.length})</div>
+        ${incompleteHtml}
+      </div>
+    </div>
+  `;
+
+  detailsEl.style.display = 'block';
+
+  const clearBtn = document.getElementById('hmClearDayBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearHeatmapSelection();
+    });
+  }
+
+  detailsEl.querySelectorAll('.hm-day-habit-item.clickable').forEach(item => {
+    item.addEventListener('click', () => {
+      const hid = item.dataset.id;
+      if (hid && typeof openHabitDetail === 'function') {
+        openHabitDetail(hid);
+      }
+    });
+  });
+}
+
+function renderHeatmap() {
+  const grid = document.getElementById('hmGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  const now = today(), startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - 83);
+  while (startDate.getDay() !== 0) startDate.setDate(startDate.getDate() - 1);
+  const cur = new Date(startDate);
+  let weekEl = null;
+
+  while (cur <= now) {
+    if (cur.getDay() === 0) {
+      weekEl = document.createElement('div');
+      weekEl.className = 'hm-week';
+      grid.appendChild(weekEl);
+    }
+    const k = dkey(cur);
+    const isFuture = cur > now;
+    const done = getDone(k);
+    const pct = S.habits.length && !isFuture ? done.length / S.habits.length : 0;
+    const lvl = isFuture ? 'future' : pct === 0 ? 'l0' : pct < 0.25 ? 'l1' : pct < 0.5 ? 'l2' : pct < 0.75 ? 'l3' : 'l4';
+    
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'hm-cell ' + lvl;
+
+    const [cy, cm, cd] = k.split('-').map(Number);
+    const dateLabel = `${cd} ${MONTHS[cm - 1] || ''} ${cy}`;
+    const pctInt = Math.round(pct * 100);
+
+    if (isFuture) {
+      cell.disabled = true;
+      cell.setAttribute('aria-disabled', 'true');
+      cell.title = 'Future date';
+      cell.setAttribute('aria-label', 'Future date');
+    } else {
+      const accessibleLabel = `${dateLabel} — ${pctInt}% complete (${done.length} of ${S.habits.length} completed)`;
+      cell.title = accessibleLabel;
+      cell.setAttribute('aria-label', accessibleLabel);
+      cell.dataset.date = k;
+
+      if (activeHeatmapDateKey === k) {
+        cell.classList.add('selected');
+        cell.setAttribute('aria-selected', 'true');
+      }
+
+      cell.addEventListener('click', () => {
+        selectHeatmapDate(k);
+      });
+    }
+
+    weekEl.appendChild(cell);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  if (activeHeatmapDateKey) {
+    renderHeatmapDayDetails(activeHeatmapDateKey);
+  }
+}
+
+window.selectHeatmapDate = selectHeatmapDate;
+window.clearHeatmapSelection = clearHeatmapSelection;
 
 function renderPieChart() {
   const canvas=document.getElementById('pieCanvas'),ctx=canvas.getContext('2d');
@@ -1481,7 +1744,13 @@ document.getElementById('mName').addEventListener('keydown', e=>{if(e.key==='Ent
 document.getElementById('subBack').addEventListener('click', closeSubTracker);
 document.getElementById('habitDetailBack').addEventListener('click', closeHabitDetail);
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && activeDetailHabitId) closeHabitDetail();
+  if (e.key === 'Escape') {
+    if (activeDetailHabitId) {
+      closeHabitDetail();
+    } else if (activeHeatmapDateKey) {
+      clearHeatmapSelection();
+    }
+  }
 });
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);
 document.getElementById('saveSubItemBtn').addEventListener('click', saveSubItem);
