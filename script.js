@@ -78,7 +78,8 @@ function getInitialState() {
     history: {},
     badges: [],
     subItems: { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
-    subHistory: {}
+    subHistory: {},
+    runs: []
   };
 }
 
@@ -87,6 +88,8 @@ let lastToggledHabitId = null;
 let lastToggledAction = null;
 let lastAddedHabitId = null;
 let prevTccPct = null;
+let isRunsLoading = false;
+let runHistoryError = null;
 
 function resetState() {
   S = getInitialState();
@@ -94,11 +97,14 @@ function resetState() {
   lastToggledAction = null;
   lastAddedHabitId = null;
   prevTccPct = null;
+  isRunsLoading = false;
+  runHistoryError = null;
   if (typeof closeQuickAdd === 'function') closeQuickAdd();
   if (typeof discardRun === 'function') discardRun();
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
   renderHabitInsights();
+  if (typeof renderRunHistory === 'function') renderRunHistory();
 }
 
 // ===================== FIREBASE DATA SYNC =====================
@@ -109,6 +115,10 @@ function getUserDocRef() {
 
 async function loadFromFirebase() {
   if (!currentUser) return;
+  isRunsLoading = true;
+  runHistoryError = null;
+  if (typeof renderRunHistory === 'function') renderRunHistory();
+
   if (currentUser.isGuest) {
     try {
       const raw = localStorage.getItem('pt_data_' + currentUser.uid);
@@ -119,11 +129,18 @@ async function loadFromFirebase() {
           history: data.history || {},
           badges: data.badges || [],
           subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
-          subHistory: data.subHistory || {}
+          subHistory: data.subHistory || {},
+          runs: Array.isArray(data.runs) ? data.runs : []
         };
+      } else {
+        if (!Array.isArray(S.runs)) S.runs = [];
       }
     } catch(e) {
       console.error('Local load error:', e);
+      runHistoryError = 'Could not load local history.';
+    } finally {
+      isRunsLoading = false;
+      if (typeof renderRunHistory === 'function') renderRunHistory();
     }
     updateSyncLabel('locally saved');
     return;
@@ -137,13 +154,19 @@ async function loadFromFirebase() {
         history: data.history || {},
         badges: data.badges || [],
         subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
-        subHistory: data.subHistory || {}
+        subHistory: data.subHistory || {},
+        runs: Array.isArray(data.runs) ? data.runs : []
       };
     } else {
+      if (!Array.isArray(S.runs)) S.runs = [];
       await saveToFirebase();
     }
   } catch(e) {
     console.error('Firebase load error:', e);
+    runHistoryError = 'Could not load runs from cloud.';
+  } finally {
+    isRunsLoading = false;
+    if (typeof renderRunHistory === 'function') renderRunHistory();
   }
 }
 
@@ -196,15 +219,26 @@ function subscribeToChanges() {
         history: data.history || {},
         badges: data.badges || [],
         subItems: data.subItems || {},
-        subHistory: data.subHistory || {}
+        subHistory: data.subHistory || {},
+        runs: Array.isArray(data.runs) ? data.runs : (S.runs || [])
       };
       renderToday();
+      if (typeof renderRunHistory === 'function') renderRunHistory();
       updateSyncLabel('abhi');
     }
   });
 }
 
 // ===================== UTILS =====================
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 function dkey(date) {
   return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
 }
@@ -2705,10 +2739,12 @@ function finishRun() {
   const averagePace = calculateAveragePace(elapsedMs, distanceMeters);
 
   runningSession.completedRun = {
+    id: 'run_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
     distanceMeters,
     durationSec: elapsedSec,
     averagePace,
-    completedAt: Date.now()
+    completedAt: Date.now(),
+    saved: false
   };
 
   runningSession.state = 'FINISHED';
@@ -2745,13 +2781,140 @@ function discardRun() {
   renderRunningView();
 }
 
+let isSavingRun = false;
+
 function doneRun() {
+  if (isSavingRun) return;
+
+  const runToSave = runningSession.completedRun;
+  if (runToSave && !runToSave.saved) {
+    runToSave.saved = true;
+    isSavingRun = true;
+    try {
+      if (!Array.isArray(S.runs)) S.runs = [];
+      const newEntry = {
+        id: runToSave.id || ('run_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8)),
+        distanceMeters: typeof runToSave.distanceMeters === 'number' ? runToSave.distanceMeters : 0,
+        durationSec: typeof runToSave.durationSec === 'number' ? runToSave.durationSec : 0,
+        averagePace: runToSave.averagePace || '-- /km',
+        completedAt: runToSave.completedAt || Date.now()
+      };
+      S.runs.unshift(newEntry);
+      renderRunHistory();
+      saveToFirebase();
+      toast('Run saved to history! 🏃');
+    } catch (err) {
+      console.error('Error saving run to history:', err);
+      toast('Failed to save run. Please try again.');
+    } finally {
+      isSavingRun = false;
+    }
+  }
+
   discardRun();
+}
+
+function deleteRun(runId) {
+  if (!runId) return;
+  if (!window.confirm('Delete this run from your history?')) return;
+  if (!Array.isArray(S.runs)) return;
+
+  const prevLen = S.runs.length;
+  S.runs = S.runs.filter(r => r.id !== runId);
+  if (S.runs.length !== prevLen) {
+    renderRunHistory();
+    saveToFirebase();
+    toast('Run deleted');
+  }
+}
+
+function renderRunHistory() {
+  const listEl = document.getElementById('runHistoryList');
+  const countEl = document.getElementById('runHistoryCount');
+  if (!listEl) return;
+
+  if (isRunsLoading) {
+    listEl.innerHTML = `
+      <div class="run-history-loading" id="runHistoryLoading">
+        <div class="run-history-spinner"></div>
+        <span>Loading run history...</span>
+      </div>
+    `;
+    if (countEl) countEl.textContent = '...';
+    return;
+  }
+
+  if (runHistoryError) {
+    listEl.innerHTML = `
+      <div class="run-history-empty">
+        <div class="run-history-empty-icon">⚠️</div>
+        <p class="run-history-empty-text" style="color:var(--red)">${escapeHtml(runHistoryError)}</p>
+      </div>
+    `;
+    if (countEl) countEl.textContent = 'Error';
+    return;
+  }
+
+  const runs = Array.isArray(S.runs) ? S.runs : [];
+  if (countEl) countEl.textContent = runs.length === 1 ? '1 run' : `${runs.length} runs`;
+
+  if (runs.length === 0) {
+    listEl.innerHTML = `
+      <div class="run-history-empty" id="runHistoryEmpty">
+        <div class="run-history-empty-icon">👟</div>
+        <p class="run-history-empty-text">No runs yet. Complete your first run to see it here.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Newest runs first
+  const sortedRuns = [...runs].sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+
+  listEl.innerHTML = sortedRuns.map(run => {
+    const formattedDate = formatRunDateTime(run.completedAt) || 'Previous Run';
+    const formattedDist = formatRunDistance(run.distanceMeters);
+    const formattedTime = formatRunTime(run.durationSec);
+    const formattedPace = run.averagePace || '-- /km';
+    const safeId = run.id || '';
+
+    return `
+      <div class="run-history-item" data-id="${safeId}">
+        <div class="run-history-item-top">
+          <div class="run-history-date-wrap">
+            <span class="run-history-badge-icon">🏃</span>
+            <span class="run-history-date">${escapeHtml(formattedDate)}</span>
+          </div>
+          <button type="button" class="run-history-delete-btn" aria-label="Delete run" title="Delete run from history" data-delete-run="${safeId}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="run-history-stats-grid">
+          <div class="run-history-stat">
+            <span class="run-history-stat-lbl">Distance</span>
+            <strong class="run-history-stat-val">${escapeHtml(formattedDist)}</strong>
+          </div>
+          <div class="run-history-stat">
+            <span class="run-history-stat-lbl">Duration</span>
+            <strong class="run-history-stat-val">${escapeHtml(formattedTime)}</strong>
+          </div>
+          <div class="run-history-stat">
+            <span class="run-history-stat-lbl">Avg Pace</span>
+            <strong class="run-history-stat-val">${escapeHtml(formattedPace)}</strong>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 if (typeof window !== 'undefined') {
   window.runningSession = runningSession;
   window.renderRunningView = renderRunningView;
+  window.renderRunHistory = renderRunHistory;
+  window.deleteRun = deleteRun;
   window.startRun = startRun;
   window.pauseRun = pauseRun;
   window.resumeRun = resumeRun;
@@ -2778,7 +2941,10 @@ function showPage(pg) {
   if (pg==='monthly') renderMonthly();
   if (pg==='manage') renderManage();
   if (pg==='stats') renderStats();
-  if (pg==='running') renderRunningView();
+  if (pg==='running') {
+    renderRunningView();
+    renderRunHistory();
+  }
 }
 
 function initGreeting() {
@@ -2799,6 +2965,7 @@ function showApp(user) {
   document.getElementById('umProfile').innerHTML=`<img src="${user.photoURL||''}" style="width:36px;height:36px;border-radius:50%;margin-right:10px;vertical-align:middle" onerror="this.style.display='none'"/><strong>${user.displayName||'Grinder'}</strong><br/><span style="font-size:11px;color:var(--muted)">${user.email}</span>`;
   initGreeting();
   renderToday();
+  renderRunHistory();
 }
 
 function showLogin() {
@@ -2930,6 +3097,13 @@ document.getElementById('finishRunBtn')?.addEventListener('click', finishRun);
 document.getElementById('discardRunBtn')?.addEventListener('click', discardRun);
 document.getElementById('doneRunBtn')?.addEventListener('click', doneRun);
 document.getElementById('retryGpsBtn')?.addEventListener('click', startRun);
+document.getElementById('runHistoryList')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-delete-run]');
+  if (btn) {
+    const runId = btn.getAttribute('data-delete-run');
+    if (runId) deleteRun(runId);
+  }
+});
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);
 document.getElementById('saveSubItemBtn').addEventListener('click', saveSubItem);
 document.getElementById('subItemOverlay').addEventListener('click', e=>{if(e.target===document.getElementById('subItemOverlay')) closeSubItemModal();});
