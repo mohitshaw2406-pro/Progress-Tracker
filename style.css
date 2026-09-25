@@ -600,21 +600,24 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
 .run-btn-finish:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 
 /* Finished */
-.run-finished-card{text-align:center;padding:32px 20px}
-.run-complete-badge{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--grn);margin-bottom:6px}
-.run-complete-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.run-finished-card{text-align:center;padding:36px 20px}
+.run-finished-hero{margin-bottom:22px}
+.run-finished-icon-badge{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:rgba(52,211,153,.14);border:1px solid rgba(52,211,153,.3);font-size:24px;margin:0 auto 12px;box-shadow:0 0 16px rgba(52,211,153,.18)}
+.run-complete-badge{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--grn);margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:8px}
+.run-complete-sub{font-size:13px;color:var(--muted);margin-bottom:0}
 .run-summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
-.run-summary-item{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px 10px;text-align:center}
-.run-summary-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.run-summary-val{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--txt);margin-top:6px}
+.run-summary-item{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:16px 10px;text-align:center;transition:border-color .18s ease}
+.run-summary-item:hover{border-color:var(--border)}
+.run-summary-lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.run-summary-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--txt);margin-top:6px}
 .run-finished-actions{display:flex;gap:10px;max-width:320px;margin:0 auto}
 .run-btn-discard{flex:1;background:var(--s2);border:1.5px solid var(--border2);border-radius:14px;padding:13px 18px;color:var(--red);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .18s ease}
-.run-btn-discard:hover{background:#fb718518;border-color:var(--red)}
+.run-btn-discard:hover{background:#fb718518;border-color:var(--red);transform:translateY(-1px)}
 .run-btn-discard:active{transform:scale(0.96)}
 .run-btn-discard:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 
-.run-btn-done{flex:1;background:linear-gradient(135deg,var(--pur),var(--blu));border:none;border-radius:14px;padding:13px 18px;color:#fff;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;transition:all .18s ease}
-.run-btn-done:hover{opacity:.92;transform:translateY(-1px)}
+.run-btn-done{flex:1;background:linear-gradient(135deg,var(--pur),var(--blu));border:none;border-radius:14px;padding:13px 18px;color:#fff;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;transition:all .18s ease;box-shadow:0 4px 16px rgba(124,90,245,.25)}
+.run-btn-done:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,90,245,.35)}
 .run-btn-done:active{transform:scale(0.96)}
 .run-btn-done:focus-visible{outline:2px solid #fff;outline-offset:2px}
 

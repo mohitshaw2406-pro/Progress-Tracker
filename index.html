@@ -384,10 +384,13 @@
       </div>
     </div>
 
-    <!-- 3. FINISHED STATE -->
-    <div class="run-card run-finished-card" id="runFinishedCard" style="display: none;">
-      <div class="run-complete-badge">🎉 Run Complete</div>
-      <div class="run-complete-sub">Workout summary:</div>
+    <!-- 3. FINISHED STATE (R2-A RUN SUMMARY) -->
+    <div class="run-card run-finished-card" id="runFinishedCard" style="display: none;" aria-live="polite">
+      <div class="run-finished-hero">
+        <div class="run-finished-icon-badge">🏃</div>
+        <div class="run-complete-badge">Run Complete</div>
+        <div class="run-complete-sub" id="runSummaryCompletedAt">Workout summary</div>
+      </div>
 
       <div class="run-summary-grid">
         <div class="run-summary-item">
@@ -395,7 +398,7 @@
           <div class="run-summary-val" id="runSummaryDistance">0 m</div>
         </div>
         <div class="run-summary-item">
-          <div class="run-summary-lbl">Time</div>
+          <div class="run-summary-lbl">Duration</div>
           <div class="run-summary-val" id="runSummaryTime">00:00:00</div>
         </div>
         <div class="run-summary-item">
@@ -405,8 +408,8 @@
       </div>
 
       <div class="run-finished-actions">
-        <button type="button" class="run-btn-discard" id="discardRunBtn">DISCARD</button>
-        <button type="button" class="run-btn-done" id="doneRunBtn">DONE</button>
+        <button type="button" class="run-btn-discard" id="discardRunBtn">Discard Run</button>
+        <button type="button" class="run-btn-done" id="doneRunBtn">Done</button>
       </div>
     </div>
 

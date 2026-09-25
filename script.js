@@ -2185,6 +2185,8 @@ const runningSession = {
   timerInterval: null,
   gpsStatus: 'idle', // 'idle' | 'acquiring' | 'active' | 'poor' | 'error'
   errorMessage: null,
+  // R2-A Completed Run Summary State (in-memory only, no persistence)
+  completedRun: null, // { distanceMeters, durationSec, averagePace, completedAt }
   // Temporary Diagnostic State (R1-B Trace)
   debug: {
     callbackCount: 0,
@@ -2233,6 +2235,20 @@ function formatRunTime(totalSec) {
   const secs = totalSec % 60;
   const pad = n => String(n).padStart(2, '0');
   return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+}
+
+// Formats timestamp into polished human-readable date/time (e.g. "Sep 25, 2026, 9:30 AM")
+function formatRunDateTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 }
 
 // Distance display rules: under 1 km -> meters (e.g. 245 m); 1 km+ -> km (e.g. 2.91 km)
@@ -2565,17 +2581,25 @@ function renderRunningView() {
     statusBadge.textContent = 'Complete';
     statusBadge.className = 'run-status-badge status-finished';
 
-    const elapsedMs = getActiveElapsedMs();
-    const elapsedSec = Math.floor(elapsedMs / 1000);
-    const distanceMeters = runningSession.totalDistanceMeters;
-    const pace = calculateAveragePace(elapsedMs, distanceMeters);
+    const run = runningSession.completedRun || {
+      distanceMeters: runningSession.totalDistanceMeters || 0,
+      durationSec: Math.floor(getActiveElapsedMs() / 1000),
+      averagePace: calculateAveragePace(getActiveElapsedMs(), runningSession.totalDistanceMeters || 0),
+      completedAt: Date.now()
+    };
 
     const sumDist = document.getElementById('runSummaryDistance');
     const sumTime = document.getElementById('runSummaryTime');
     const sumPace = document.getElementById('runSummaryPace');
-    if (sumDist) sumDist.textContent = formatRunDistance(distanceMeters);
-    if (sumTime) sumTime.textContent = formatRunTime(elapsedSec);
-    if (sumPace) sumPace.textContent = pace;
+    const sumDate = document.getElementById('runSummaryCompletedAt');
+
+    if (sumDist) sumDist.textContent = formatRunDistance(run.distanceMeters);
+    if (sumTime) sumTime.textContent = formatRunTime(run.durationSec);
+    if (sumPace) sumPace.textContent = run.averagePace || '-- /km';
+    if (sumDate) {
+      const formattedDate = formatRunDateTime(run.completedAt);
+      sumDate.textContent = formattedDate ? `Completed on ${formattedDate}` : 'Workout summary';
+    }
   } else if (runningSession.state === 'ERROR') {
     idleCard.style.display = 'none';
     activeCard.style.display = 'none';
@@ -2600,6 +2624,7 @@ function startRun() {
   runningSession.lastPosition = null;
   runningSession.isResumeBaseline = false;
   runningSession.errorMessage = null;
+  runningSession.completedRun = null;
   runningSession.debug = {
     callbackCount: 0,
     hasCoords: false,
@@ -2674,6 +2699,18 @@ function finishRun() {
     runningSession.timerInterval = null;
   }
 
+  const elapsedMs = runningSession.accumulatedActiveMs;
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  const distanceMeters = runningSession.totalDistanceMeters || 0;
+  const averagePace = calculateAveragePace(elapsedMs, distanceMeters);
+
+  runningSession.completedRun = {
+    distanceMeters,
+    durationSec: elapsedSec,
+    averagePace,
+    completedAt: Date.now()
+  };
+
   runningSession.state = 'FINISHED';
   renderRunningView();
 }
@@ -2693,6 +2730,7 @@ function discardRun() {
   runningSession.lastPosition = null;
   runningSession.isResumeBaseline = false;
   runningSession.errorMessage = null;
+  runningSession.completedRun = null;
   runningSession.debug = {
     callbackCount: 0,
     hasCoords: false,
@@ -2723,6 +2761,7 @@ if (typeof window !== 'undefined') {
   window.haversineDistanceMeters = haversineDistanceMeters;
   window.formatRunDistance = formatRunDistance;
   window.calculateAveragePace = calculateAveragePace;
+  window.formatRunDateTime = formatRunDateTime;
   window.handleGpsSuccess = handleGpsSuccess;
   window.handleGpsError = handleGpsError;
   window.stopGpsWatch = stopGpsWatch;
