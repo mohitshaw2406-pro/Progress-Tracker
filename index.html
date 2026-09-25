@@ -346,6 +346,12 @@
         </div>
       </div>
 
+      <!-- GPS Signal indicator -->
+      <div class="run-gps-indicator" id="runGpsIndicator">
+        <span class="run-gps-dot" id="runGpsDot"></span>
+        <span id="runGpsText">Acquiring GPS...</span>
+      </div>
+
       <!-- Active controls -->
       <div class="run-controls-row" id="runControlsRow">
         <button type="button" class="run-ctrl-btn run-btn-pause" id="pauseRunBtn">
@@ -368,7 +374,7 @@
       <div class="run-summary-grid">
         <div class="run-summary-item">
           <div class="run-summary-lbl">Distance</div>
-          <div class="run-summary-val" id="runSummaryDistance">0.00 km</div>
+          <div class="run-summary-val" id="runSummaryDistance">0 m</div>
         </div>
         <div class="run-summary-item">
           <div class="run-summary-lbl">Time</div>
@@ -384,6 +390,14 @@
         <button type="button" class="run-btn-discard" id="discardRunBtn">DISCARD</button>
         <button type="button" class="run-btn-done" id="doneRunBtn">DONE</button>
       </div>
+    </div>
+
+    <!-- 4. ERROR STATE -->
+    <div class="run-card run-error-card" id="runErrorCard" style="display: none;">
+      <div class="run-error-icon">⚠️</div>
+      <div class="run-error-title" id="runErrorTitle">GPS Error</div>
+      <div class="run-error-desc" id="runErrorDesc">Unable to access your location.</div>
+      <button type="button" class="run-btn-primary" id="retryGpsBtn">Try Again</button>
     </div>
   </div>
 

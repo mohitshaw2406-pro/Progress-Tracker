@@ -2173,16 +2173,50 @@ if (typeof window !== 'undefined') {
   window.createAndSaveHabit = createAndSaveHabit;
 }
 
-// ===================== RUNNING MODULE (R1-A) =====================
+// ===================== RUNNING MODULE (R1-B GPS ENGINE) =====================
 const runningSession = {
-  state: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED' | 'FINISHED'
-  elapsedSeconds: 0,
-  distanceKm: 0,
-  pace: '-- /km',
-  timerInterval: null
+  state: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED' | 'FINISHED' | 'ERROR'
+  watchId: null,
+  accumulatedActiveMs: 0,
+  segmentStartMs: null,
+  totalDistanceMeters: 0,
+  lastPosition: null, // { lat, lon, timestamp, accuracy }
+  isResumeBaseline: false,
+  timerInterval: null,
+  gpsStatus: 'idle', // 'idle' | 'acquiring' | 'active' | 'poor' | 'error'
+  errorMessage: null
 };
 
+const GPS_OPTIONS = {
+  enableHighAccuracy: true,
+  maximumAge: 2000,
+  timeout: 10000
+};
+
+// Haversine formula: calculates great-circle distance between two GPS coordinates in meters
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Earth mean radius in meters
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Active elapsed time calculated from timestamps to prevent interval timer drift
+function getActiveElapsedMs() {
+  if (runningSession.state === 'RUNNING' && runningSession.segmentStartMs) {
+    return runningSession.accumulatedActiveMs + (Date.now() - runningSession.segmentStartMs);
+  }
+  return runningSession.accumulatedActiveMs;
+}
+
 function formatRunTime(totalSec) {
+  if (typeof totalSec !== 'number' || isNaN(totalSec) || totalSec < 0) totalSec = 0;
   const hrs = Math.floor(totalSec / 3600);
   const mins = Math.floor((totalSec % 3600) / 60);
   const secs = totalSec % 60;
@@ -2190,20 +2224,195 @@ function formatRunTime(totalSec) {
   return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
 }
 
+// Distance display rules: under 1 km -> meters (e.g. 245 m); 1 km+ -> km (e.g. 2.91 km)
+function formatRunDistance(meters) {
+  if (typeof meters !== 'number' || isNaN(meters) || meters <= 0) {
+    return '0 m';
+  }
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${(meters / 1000).toFixed(2)} km`;
+}
+
+// Average pace in min/km format (e.g. 6:25 /km). Returns '-- /km' when distance/time is insufficient.
+function calculateAveragePace(elapsedMs, meters) {
+  if (!meters || meters < 15 || !elapsedMs || elapsedMs < 3000) {
+    return '-- /km';
+  }
+  const km = meters / 1000;
+  const elapsedSec = elapsedMs / 1000;
+  const secondsPerKm = elapsedSec / km;
+
+  if (!isFinite(secondsPerKm) || isNaN(secondsPerKm) || secondsPerKm <= 0 || secondsPerKm > 3600) {
+    return '-- /km';
+  }
+
+  const mins = Math.floor(secondsPerKm / 60);
+  const secs = Math.floor(secondsPerKm % 60);
+  return `${mins}:${String(secs).padStart(2, '0')} /km`;
+}
+
+function updateGpsIndicator(status, text) {
+  runningSession.gpsStatus = status;
+  const ind = document.getElementById('runGpsIndicator');
+  const txt = document.getElementById('runGpsText');
+  if (!ind || !txt) return;
+
+  txt.textContent = text || 'GPS Active';
+  ind.className = 'run-gps-indicator' + (status === 'poor' ? ' poor' : status === 'lost' ? ' lost' : '');
+}
+
 function updateRunMetricsUI() {
+  const elapsedMs = getActiveElapsedMs();
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  const distanceMeters = runningSession.totalDistanceMeters;
+  const pace = calculateAveragePace(elapsedMs, distanceMeters);
+
   const timerEl = document.getElementById('runTimerDisplay');
   const distEl = document.getElementById('runDistanceDisplay');
   const paceEl = document.getElementById('runPaceDisplay');
 
-  if (timerEl) timerEl.textContent = formatRunTime(runningSession.elapsedSeconds);
-  if (distEl) distEl.textContent = runningSession.distanceKm.toFixed(2) + ' km';
-  if (paceEl) paceEl.textContent = runningSession.pace;
+  if (timerEl) timerEl.textContent = formatRunTime(elapsedSec);
+  if (distEl) distEl.textContent = formatRunDistance(distanceMeters);
+  if (paceEl) paceEl.textContent = pace;
+}
+
+function handleGpsSuccess(position) {
+  if (runningSession.state !== 'RUNNING') return;
+
+  const coords = position.coords;
+  if (!coords) return;
+
+  const lat = coords.latitude;
+  const lon = coords.longitude;
+  const accuracy = coords.accuracy;
+  const timestamp = position.timestamp || Date.now();
+
+  // Validate coordinates range
+  if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) return;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
+
+  // Filter 1: Reject readings with very poor accuracy (> 65m) to avoid severe noise
+  if (typeof accuracy === 'number' && accuracy > 65) {
+    updateGpsIndicator('poor', `Weak GPS (±${Math.round(accuracy)}m)`);
+    return;
+  }
+
+  updateGpsIndicator('active', 'GPS Active');
+
+  // Filter 2: First valid point sets the initial baseline or post-resume baseline
+  if (!runningSession.lastPosition || runningSession.isResumeBaseline) {
+    runningSession.lastPosition = { lat, lon, timestamp, accuracy };
+    runningSession.isResumeBaseline = false;
+    updateRunMetricsUI();
+    return;
+  }
+
+  // Filter 3: Compute consecutive segment distance
+  const last = runningSession.lastPosition;
+  const segmentMeters = haversineDistanceMeters(last.lat, last.lon, lat, lon);
+  const dtSec = Math.max(0.1, (timestamp - last.timestamp) / 1000);
+
+  // Filter 4: Sanity check against unrealistic speed spikes (teleportation/glitches)
+  // Max running sprint speed threshold: 12 m/s (~43.2 km/h).
+  const impliedSpeedMps = segmentMeters / dtSec;
+  if (impliedSpeedMps > 12.0) {
+    console.warn(`[GPS] Filtered speed jump: ${impliedSpeedMps.toFixed(1)} m/s, dist: ${segmentMeters.toFixed(1)}m`);
+    runningSession.lastPosition = { lat, lon, timestamp, accuracy };
+    return;
+  }
+
+  // Filter 5: Ignore micro-jitter under 1.5 meters when stationary
+  if (segmentMeters >= 1.5) {
+    runningSession.totalDistanceMeters += segmentMeters;
+    runningSession.lastPosition = { lat, lon, timestamp, accuracy };
+    updateRunMetricsUI();
+  }
+}
+
+function handleGpsError(err) {
+  console.warn('[GPS Error]', err);
+
+  let message = 'Unable to access your location.';
+  let isFatal = false;
+
+  if (err) {
+    switch (err.code) {
+      case 1: // PERMISSION_DENIED
+        message = 'Location permission was denied. Please allow location access in your browser to track your run.';
+        isFatal = true;
+        break;
+      case 2: // POSITION_UNAVAILABLE
+        message = 'GPS signal unavailable. Please ensure location services are enabled on your device.';
+        break;
+      case 3: // TIMEOUT
+        if (runningSession.state === 'RUNNING' && runningSession.lastPosition) {
+          updateGpsIndicator('poor', 'Searching for GPS signal...');
+          return;
+        }
+        message = 'GPS connection timed out. Please check satellite visibility and try again.';
+        break;
+    }
+  }
+
+  if (isFatal || (!runningSession.lastPosition && runningSession.totalDistanceMeters === 0)) {
+    stopGpsWatch();
+    if (runningSession.timerInterval) {
+      clearInterval(runningSession.timerInterval);
+      runningSession.timerInterval = null;
+    }
+    runningSession.state = 'ERROR';
+    runningSession.errorMessage = message;
+    renderRunningView();
+  } else {
+    updateGpsIndicator('poor', 'Weak GPS signal');
+  }
+}
+
+function startGpsWatch() {
+  stopGpsWatch();
+
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    runningSession.state = 'ERROR';
+    runningSession.errorMessage = 'GPS tracking is not supported by your browser.';
+    renderRunningView();
+    return false;
+  }
+
+  updateGpsIndicator('acquiring', 'Acquiring GPS...');
+  try {
+    runningSession.watchId = navigator.geolocation.watchPosition(
+      handleGpsSuccess,
+      handleGpsError,
+      GPS_OPTIONS
+    );
+    return true;
+  } catch (e) {
+    console.error('Failed to start watchPosition:', e);
+    runningSession.state = 'ERROR';
+    runningSession.errorMessage = 'Could not start GPS tracking: ' + (e.message || 'Unknown error');
+    renderRunningView();
+    return false;
+  }
+}
+
+function stopGpsWatch() {
+  if (runningSession.watchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+    try {
+      navigator.geolocation.clearWatch(runningSession.watchId);
+    } catch (e) {
+      console.warn('Error clearing GPS watch:', e);
+    }
+    runningSession.watchId = null;
+  }
 }
 
 function renderRunningView() {
   const idleCard = document.getElementById('runIdleCard');
   const activeCard = document.getElementById('runActiveCard');
   const finishedCard = document.getElementById('runFinishedCard');
+  const errorCard = document.getElementById('runErrorCard');
   const statusBadge = document.getElementById('runStatusBadge');
   const activeStatusBanner = document.getElementById('runActiveStatusBanner');
   const activeStatusText = document.getElementById('runActiveStatusText');
@@ -2217,12 +2426,14 @@ function renderRunningView() {
     idleCard.style.display = 'block';
     activeCard.style.display = 'none';
     finishedCard.style.display = 'none';
+    if (errorCard) errorCard.style.display = 'none';
     statusBadge.textContent = 'Ready';
     statusBadge.className = 'run-status-badge status-idle';
   } else if (runningSession.state === 'RUNNING') {
     idleCard.style.display = 'none';
     activeCard.style.display = 'block';
     finishedCard.style.display = 'none';
+    if (errorCard) errorCard.style.display = 'none';
     statusBadge.textContent = 'Running';
     statusBadge.className = 'run-status-badge status-running';
     if (activeStatusBanner) activeStatusBanner.className = 'run-active-status';
@@ -2235,6 +2446,7 @@ function renderRunningView() {
     idleCard.style.display = 'none';
     activeCard.style.display = 'block';
     finishedCard.style.display = 'none';
+    if (errorCard) errorCard.style.display = 'none';
     statusBadge.textContent = 'Paused';
     statusBadge.className = 'run-status-badge status-paused';
     if (activeStatusBanner) activeStatusBanner.className = 'run-active-status is-paused';
@@ -2242,78 +2454,135 @@ function renderRunningView() {
     if (pauseBtn) pauseBtn.style.display = 'none';
     if (resumeBtn) resumeBtn.style.display = 'inline-flex';
     if (finishBtn) finishBtn.style.display = 'inline-flex';
+    updateGpsIndicator('idle', 'GPS Paused');
     updateRunMetricsUI();
   } else if (runningSession.state === 'FINISHED') {
     idleCard.style.display = 'none';
     activeCard.style.display = 'none';
     finishedCard.style.display = 'block';
+    if (errorCard) errorCard.style.display = 'none';
     statusBadge.textContent = 'Complete';
     statusBadge.className = 'run-status-badge status-finished';
+
+    const elapsedMs = getActiveElapsedMs();
+    const elapsedSec = Math.floor(elapsedMs / 1000);
+    const distanceMeters = runningSession.totalDistanceMeters;
+    const pace = calculateAveragePace(elapsedMs, distanceMeters);
 
     const sumDist = document.getElementById('runSummaryDistance');
     const sumTime = document.getElementById('runSummaryTime');
     const sumPace = document.getElementById('runSummaryPace');
-    if (sumDist) sumDist.textContent = runningSession.distanceKm.toFixed(2) + ' km';
-    if (sumTime) sumTime.textContent = formatRunTime(runningSession.elapsedSeconds);
-    if (sumPace) sumPace.textContent = runningSession.pace;
+    if (sumDist) sumDist.textContent = formatRunDistance(distanceMeters);
+    if (sumTime) sumTime.textContent = formatRunTime(elapsedSec);
+    if (sumPace) sumPace.textContent = pace;
+  } else if (runningSession.state === 'ERROR') {
+    idleCard.style.display = 'none';
+    activeCard.style.display = 'none';
+    finishedCard.style.display = 'none';
+    if (errorCard) {
+      errorCard.style.display = 'block';
+      const desc = document.getElementById('runErrorDesc');
+      if (desc && runningSession.errorMessage) {
+        desc.textContent = runningSession.errorMessage;
+      }
+    }
+    statusBadge.textContent = 'GPS Error';
+    statusBadge.className = 'run-status-badge status-error';
   }
 }
 
 function startRun() {
   runningSession.state = 'RUNNING';
-  runningSession.elapsedSeconds = 0;
-  runningSession.distanceKm = 0;
-  runningSession.pace = '-- /km';
+  runningSession.accumulatedActiveMs = 0;
+  runningSession.segmentStartMs = Date.now();
+  runningSession.totalDistanceMeters = 0;
+  runningSession.lastPosition = null;
+  runningSession.isResumeBaseline = false;
+  runningSession.errorMessage = null;
+
+  startGpsWatch();
 
   if (runningSession.timerInterval) clearInterval(runningSession.timerInterval);
   runningSession.timerInterval = setInterval(() => {
-    runningSession.elapsedSeconds++;
     updateRunMetricsUI();
-  }, 1000);
+  }, 500);
 
   renderRunningView();
 }
 
 function pauseRun() {
   if (runningSession.state !== 'RUNNING') return;
-  runningSession.state = 'PAUSED';
+
+  stopGpsWatch();
+
+  if (runningSession.segmentStartMs) {
+    runningSession.accumulatedActiveMs += (Date.now() - runningSession.segmentStartMs);
+    runningSession.segmentStartMs = null;
+  }
+
   if (runningSession.timerInterval) {
     clearInterval(runningSession.timerInterval);
     runningSession.timerInterval = null;
   }
+
+  runningSession.state = 'PAUSED';
+  updateRunMetricsUI();
   renderRunningView();
 }
 
 function resumeRun() {
   if (runningSession.state !== 'PAUSED') return;
+
   runningSession.state = 'RUNNING';
+  runningSession.segmentStartMs = Date.now();
+  runningSession.isResumeBaseline = true;
+
+  startGpsWatch();
+
   if (runningSession.timerInterval) clearInterval(runningSession.timerInterval);
   runningSession.timerInterval = setInterval(() => {
-    runningSession.elapsedSeconds++;
     updateRunMetricsUI();
-  }, 1000);
+  }, 500);
+
+  updateRunMetricsUI();
   renderRunningView();
 }
 
 function finishRun() {
   if (runningSession.state !== 'RUNNING' && runningSession.state !== 'PAUSED') return;
-  runningSession.state = 'FINISHED';
+
+  stopGpsWatch();
+
+  if (runningSession.state === 'RUNNING' && runningSession.segmentStartMs) {
+    runningSession.accumulatedActiveMs += (Date.now() - runningSession.segmentStartMs);
+    runningSession.segmentStartMs = null;
+  }
+
   if (runningSession.timerInterval) {
     clearInterval(runningSession.timerInterval);
     runningSession.timerInterval = null;
   }
+
+  runningSession.state = 'FINISHED';
   renderRunningView();
 }
 
 function discardRun() {
+  stopGpsWatch();
+
   if (runningSession.timerInterval) {
     clearInterval(runningSession.timerInterval);
     runningSession.timerInterval = null;
   }
+
   runningSession.state = 'IDLE';
-  runningSession.elapsedSeconds = 0;
-  runningSession.distanceKm = 0;
-  runningSession.pace = '-- /km';
+  runningSession.accumulatedActiveMs = 0;
+  runningSession.segmentStartMs = null;
+  runningSession.totalDistanceMeters = 0;
+  runningSession.lastPosition = null;
+  runningSession.isResumeBaseline = false;
+  runningSession.errorMessage = null;
+
   renderRunningView();
 }
 
@@ -2330,6 +2599,12 @@ if (typeof window !== 'undefined') {
   window.finishRun = finishRun;
   window.discardRun = discardRun;
   window.doneRun = doneRun;
+  window.haversineDistanceMeters = haversineDistanceMeters;
+  window.formatRunDistance = formatRunDistance;
+  window.calculateAveragePace = calculateAveragePace;
+  window.handleGpsSuccess = handleGpsSuccess;
+  window.handleGpsError = handleGpsError;
+  window.stopGpsWatch = stopGpsWatch;
 }
 
 // ===================== NAV =====================
@@ -2494,6 +2769,7 @@ document.getElementById('resumeRunBtn')?.addEventListener('click', resumeRun);
 document.getElementById('finishRunBtn')?.addEventListener('click', finishRun);
 document.getElementById('discardRunBtn')?.addEventListener('click', discardRun);
 document.getElementById('doneRunBtn')?.addEventListener('click', doneRun);
+document.getElementById('retryGpsBtn')?.addEventListener('click', startRun);
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);
 document.getElementById('saveSubItemBtn').addEventListener('click', saveSubItem);
 document.getElementById('subItemOverlay').addEventListener('click', e=>{if(e.target===document.getElementById('subItemOverlay')) closeSubItemModal();});
