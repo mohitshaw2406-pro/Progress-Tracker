@@ -2220,7 +2220,9 @@ const runningSession = {
   gpsStatus: 'idle', // 'idle' | 'acquiring' | 'active' | 'poor' | 'error'
   errorMessage: null,
   // R2-A Completed Run Summary State (in-memory only, no persistence)
-  completedRun: null, // { distanceMeters, durationSec, averagePace, completedAt }
+  completedRun: null, // { distanceMeters, durationSec, averagePace, completedAt, route }
+  // R3-A In-memory GPS route array for active run
+  route: [], // Array<{ lat: number, lon: number, timestamp: number }>
   // Temporary Diagnostic State (R1-B Trace)
   debug: {
     callbackCount: 0,
@@ -2233,6 +2235,31 @@ const runningSession = {
     lastErrorMessage: null
   }
 };
+
+// R3-A Route Point Collector (appends accepted GPS points to active run)
+function appendRoutePoint(lat, lon, timestamp) {
+  if (runningSession.state !== 'RUNNING') return;
+  if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) return;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
+
+  if (!Array.isArray(runningSession.route)) {
+    runningSession.route = [];
+  }
+
+  const route = runningSession.route;
+  const lastPoint = route.length > 0 ? route[route.length - 1] : null;
+
+  // Prevent duplicate identical consecutive coordinates
+  if (lastPoint && lastPoint.lat === lat && lastPoint.lon === lon) {
+    return;
+  }
+
+  route.push({
+    lat,
+    lon,
+    timestamp: typeof timestamp === 'number' && !isNaN(timestamp) ? timestamp : Date.now()
+  });
+}
 
 const GPS_OPTIONS = {
   enableHighAccuracy: true,
@@ -2419,6 +2446,7 @@ function handleGpsSuccess(position) {
     runningSession.lastPosition = { lat, lon, timestamp, accuracy };
     runningSession.isResumeBaseline = false;
     runningSession.debug.acceptedPoints++;
+    appendRoutePoint(lat, lon, timestamp);
     console.log(`[GPS Trace #5: Baseline Set] First point or post-resume baseline established at accuracy ±${Math.round(accuracy)}m`);
     updateRunMetricsUI();
     return;
@@ -2466,6 +2494,7 @@ function handleGpsSuccess(position) {
     runningSession.totalDistanceMeters += segmentMeters;
     runningSession.lastPosition = { lat, lon, timestamp, accuracy };
     runningSession.debug.acceptedPoints++;
+    appendRoutePoint(lat, lon, timestamp);
     console.log(`[GPS Trace #7 & #8: Distance Added] +${segmentMeters.toFixed(2)}m, Total: ${runningSession.totalDistanceMeters.toFixed(2)}m`);
     updateRunMetricsUI();
   } else {
@@ -2659,6 +2688,7 @@ function startRun() {
   runningSession.isResumeBaseline = false;
   runningSession.errorMessage = null;
   runningSession.completedRun = null;
+  runningSession.route = [];
   runningSession.debug = {
     callbackCount: 0,
     hasCoords: false,
@@ -2744,6 +2774,7 @@ function finishRun() {
     durationSec: elapsedSec,
     averagePace,
     completedAt: Date.now(),
+    route: Array.isArray(runningSession.route) ? [...runningSession.route] : [],
     saved: false
   };
 
@@ -2767,6 +2798,7 @@ function discardRun() {
   runningSession.isResumeBaseline = false;
   runningSession.errorMessage = null;
   runningSession.completedRun = null;
+  runningSession.route = [];
   runningSession.debug = {
     callbackCount: 0,
     hasCoords: false,
@@ -2797,7 +2829,8 @@ function doneRun() {
         distanceMeters: typeof runToSave.distanceMeters === 'number' ? runToSave.distanceMeters : 0,
         durationSec: typeof runToSave.durationSec === 'number' ? runToSave.durationSec : 0,
         averagePace: runToSave.averagePace || '-- /km',
-        completedAt: runToSave.completedAt || Date.now()
+        completedAt: runToSave.completedAt || Date.now(),
+        route: Array.isArray(runToSave.route) ? runToSave.route : []
       };
       S.runs.unshift(newEntry);
       renderRunHistory();
@@ -2928,6 +2961,7 @@ if (typeof window !== 'undefined') {
   window.handleGpsSuccess = handleGpsSuccess;
   window.handleGpsError = handleGpsError;
   window.stopGpsWatch = stopGpsWatch;
+  window.appendRoutePoint = appendRoutePoint;
 }
 
 // ===================== NAV =====================
