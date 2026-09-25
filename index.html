@@ -64,6 +64,7 @@
       <button class="tab" data-pg="monthly">Month</button>
       <button class="tab" data-pg="stats">Stats</button>
       <button class="tab" data-pg="manage">Habits</button>
+      <button class="tab" data-pg="running">🏃 Run</button>
     </div>
     <button class="user-btn" id="userBtn" title="Account">👤</button>
   </div>
@@ -301,6 +302,89 @@
     <div class="lbl">Manage Your Habits</div>
     <div class="mng-list" id="mngList"></div>
     <button class="add-habit-btn" id="openModalBtn2">+ Add New Habit</button>
+  </div>
+
+  <!-- RUNNING MODULE (R1-A) -->
+  <div class="pg" id="pg-running">
+    <div class="pg-header">
+      <div class="pg-title">🏃 Running</div>
+      <div id="runStatusBadge" class="run-status-badge status-idle">Ready</div>
+    </div>
+
+    <!-- 1. IDLE STATE -->
+    <div class="run-card run-idle-card" id="runIdleCard">
+      <div class="run-hero-icon">🏃</div>
+      <div class="run-hero-title">Ready to run?</div>
+      <div class="run-hero-sub">Track your live running sessions with time, distance, and pace.</div>
+      <button type="button" class="run-btn-primary" id="startRunBtn">
+        <span>▶</span> START RUN
+      </button>
+    </div>
+
+    <!-- 2. ACTIVE RUN (RUNNING & PAUSED STATES) -->
+    <div class="run-card run-active-card" id="runActiveCard" style="display: none;" aria-live="polite">
+      <div class="run-active-status" id="runActiveStatusBanner">
+        <span class="run-pulse-dot" id="runPulseDot"></span>
+        <span id="runActiveStatusText">Recording Run</span>
+      </div>
+
+      <!-- Main timer (Large) -->
+      <div class="run-metric-primary">
+        <div class="run-metric-lbl">Elapsed Time</div>
+        <div class="run-metric-timer" id="runTimerDisplay">00:00:00</div>
+      </div>
+
+      <!-- Secondary metrics grid (Distance & Pace) -->
+      <div class="run-metrics-grid">
+        <div class="run-metric-box">
+          <div class="run-metric-lbl">Distance</div>
+          <div class="run-metric-val" id="runDistanceDisplay">0.00 km</div>
+        </div>
+        <div class="run-metric-box">
+          <div class="run-metric-lbl">Pace</div>
+          <div class="run-metric-val" id="runPaceDisplay">-- /km</div>
+        </div>
+      </div>
+
+      <!-- Active controls -->
+      <div class="run-controls-row" id="runControlsRow">
+        <button type="button" class="run-ctrl-btn run-btn-pause" id="pauseRunBtn">
+          <span>⏸</span> PAUSE
+        </button>
+        <button type="button" class="run-ctrl-btn run-btn-resume" id="resumeRunBtn" style="display: none;">
+          <span>▶</span> RESUME
+        </button>
+        <button type="button" class="run-ctrl-btn run-btn-finish" id="finishRunBtn">
+          <span>🏁</span> FINISH
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. FINISHED STATE -->
+    <div class="run-card run-finished-card" id="runFinishedCard" style="display: none;">
+      <div class="run-complete-badge">🎉 Run Complete</div>
+      <div class="run-complete-sub">Workout summary:</div>
+
+      <div class="run-summary-grid">
+        <div class="run-summary-item">
+          <div class="run-summary-lbl">Distance</div>
+          <div class="run-summary-val" id="runSummaryDistance">0.00 km</div>
+        </div>
+        <div class="run-summary-item">
+          <div class="run-summary-lbl">Time</div>
+          <div class="run-summary-val" id="runSummaryTime">00:00:00</div>
+        </div>
+        <div class="run-summary-item">
+          <div class="run-summary-lbl">Average Pace</div>
+          <div class="run-summary-val" id="runSummaryPace">-- /km</div>
+        </div>
+      </div>
+
+      <div class="run-finished-actions">
+        <button type="button" class="run-btn-discard" id="discardRunBtn">DISCARD</button>
+        <button type="button" class="run-btn-done" id="doneRunBtn">DONE</button>
+      </div>
+    </div>
   </div>
 
 </div>

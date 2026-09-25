@@ -95,6 +95,7 @@ function resetState() {
   lastAddedHabitId = null;
   prevTccPct = null;
   if (typeof closeQuickAdd === 'function') closeQuickAdd();
+  if (typeof discardRun === 'function') discardRun();
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
   renderHabitInsights();
@@ -2172,6 +2173,165 @@ if (typeof window !== 'undefined') {
   window.createAndSaveHabit = createAndSaveHabit;
 }
 
+// ===================== RUNNING MODULE (R1-A) =====================
+const runningSession = {
+  state: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED' | 'FINISHED'
+  elapsedSeconds: 0,
+  distanceKm: 0,
+  pace: '-- /km',
+  timerInterval: null
+};
+
+function formatRunTime(totalSec) {
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+}
+
+function updateRunMetricsUI() {
+  const timerEl = document.getElementById('runTimerDisplay');
+  const distEl = document.getElementById('runDistanceDisplay');
+  const paceEl = document.getElementById('runPaceDisplay');
+
+  if (timerEl) timerEl.textContent = formatRunTime(runningSession.elapsedSeconds);
+  if (distEl) distEl.textContent = runningSession.distanceKm.toFixed(2) + ' km';
+  if (paceEl) paceEl.textContent = runningSession.pace;
+}
+
+function renderRunningView() {
+  const idleCard = document.getElementById('runIdleCard');
+  const activeCard = document.getElementById('runActiveCard');
+  const finishedCard = document.getElementById('runFinishedCard');
+  const statusBadge = document.getElementById('runStatusBadge');
+  const activeStatusBanner = document.getElementById('runActiveStatusBanner');
+  const activeStatusText = document.getElementById('runActiveStatusText');
+  const pauseBtn = document.getElementById('pauseRunBtn');
+  const resumeBtn = document.getElementById('resumeRunBtn');
+  const finishBtn = document.getElementById('finishRunBtn');
+
+  if (!idleCard || !activeCard || !finishedCard || !statusBadge) return;
+
+  if (runningSession.state === 'IDLE') {
+    idleCard.style.display = 'block';
+    activeCard.style.display = 'none';
+    finishedCard.style.display = 'none';
+    statusBadge.textContent = 'Ready';
+    statusBadge.className = 'run-status-badge status-idle';
+  } else if (runningSession.state === 'RUNNING') {
+    idleCard.style.display = 'none';
+    activeCard.style.display = 'block';
+    finishedCard.style.display = 'none';
+    statusBadge.textContent = 'Running';
+    statusBadge.className = 'run-status-badge status-running';
+    if (activeStatusBanner) activeStatusBanner.className = 'run-active-status';
+    if (activeStatusText) activeStatusText.textContent = 'Recording Run';
+    if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (finishBtn) finishBtn.style.display = 'inline-flex';
+    updateRunMetricsUI();
+  } else if (runningSession.state === 'PAUSED') {
+    idleCard.style.display = 'none';
+    activeCard.style.display = 'block';
+    finishedCard.style.display = 'none';
+    statusBadge.textContent = 'Paused';
+    statusBadge.className = 'run-status-badge status-paused';
+    if (activeStatusBanner) activeStatusBanner.className = 'run-active-status is-paused';
+    if (activeStatusText) activeStatusText.textContent = '⏸ Run Paused';
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'inline-flex';
+    if (finishBtn) finishBtn.style.display = 'inline-flex';
+    updateRunMetricsUI();
+  } else if (runningSession.state === 'FINISHED') {
+    idleCard.style.display = 'none';
+    activeCard.style.display = 'none';
+    finishedCard.style.display = 'block';
+    statusBadge.textContent = 'Complete';
+    statusBadge.className = 'run-status-badge status-finished';
+
+    const sumDist = document.getElementById('runSummaryDistance');
+    const sumTime = document.getElementById('runSummaryTime');
+    const sumPace = document.getElementById('runSummaryPace');
+    if (sumDist) sumDist.textContent = runningSession.distanceKm.toFixed(2) + ' km';
+    if (sumTime) sumTime.textContent = formatRunTime(runningSession.elapsedSeconds);
+    if (sumPace) sumPace.textContent = runningSession.pace;
+  }
+}
+
+function startRun() {
+  runningSession.state = 'RUNNING';
+  runningSession.elapsedSeconds = 0;
+  runningSession.distanceKm = 0;
+  runningSession.pace = '-- /km';
+
+  if (runningSession.timerInterval) clearInterval(runningSession.timerInterval);
+  runningSession.timerInterval = setInterval(() => {
+    runningSession.elapsedSeconds++;
+    updateRunMetricsUI();
+  }, 1000);
+
+  renderRunningView();
+}
+
+function pauseRun() {
+  if (runningSession.state !== 'RUNNING') return;
+  runningSession.state = 'PAUSED';
+  if (runningSession.timerInterval) {
+    clearInterval(runningSession.timerInterval);
+    runningSession.timerInterval = null;
+  }
+  renderRunningView();
+}
+
+function resumeRun() {
+  if (runningSession.state !== 'PAUSED') return;
+  runningSession.state = 'RUNNING';
+  if (runningSession.timerInterval) clearInterval(runningSession.timerInterval);
+  runningSession.timerInterval = setInterval(() => {
+    runningSession.elapsedSeconds++;
+    updateRunMetricsUI();
+  }, 1000);
+  renderRunningView();
+}
+
+function finishRun() {
+  if (runningSession.state !== 'RUNNING' && runningSession.state !== 'PAUSED') return;
+  runningSession.state = 'FINISHED';
+  if (runningSession.timerInterval) {
+    clearInterval(runningSession.timerInterval);
+    runningSession.timerInterval = null;
+  }
+  renderRunningView();
+}
+
+function discardRun() {
+  if (runningSession.timerInterval) {
+    clearInterval(runningSession.timerInterval);
+    runningSession.timerInterval = null;
+  }
+  runningSession.state = 'IDLE';
+  runningSession.elapsedSeconds = 0;
+  runningSession.distanceKm = 0;
+  runningSession.pace = '-- /km';
+  renderRunningView();
+}
+
+function doneRun() {
+  discardRun();
+}
+
+if (typeof window !== 'undefined') {
+  window.runningSession = runningSession;
+  window.renderRunningView = renderRunningView;
+  window.startRun = startRun;
+  window.pauseRun = pauseRun;
+  window.resumeRun = resumeRun;
+  window.finishRun = finishRun;
+  window.discardRun = discardRun;
+  window.doneRun = doneRun;
+}
+
 // ===================== NAV =====================
 function showPage(pg) {
   document.querySelectorAll('.pg').forEach(el=>el.classList.remove('on'));
@@ -2183,6 +2343,7 @@ function showPage(pg) {
   if (pg==='monthly') renderMonthly();
   if (pg==='manage') renderManage();
   if (pg==='stats') renderStats();
+  if (pg==='running') renderRunningView();
 }
 
 function initGreeting() {
@@ -2327,6 +2488,12 @@ document.getElementById('quickAddInput')?.addEventListener('keydown', e => {
     closeQuickAdd();
   }
 });
+document.getElementById('startRunBtn')?.addEventListener('click', startRun);
+document.getElementById('pauseRunBtn')?.addEventListener('click', pauseRun);
+document.getElementById('resumeRunBtn')?.addEventListener('click', resumeRun);
+document.getElementById('finishRunBtn')?.addEventListener('click', finishRun);
+document.getElementById('discardRunBtn')?.addEventListener('click', discardRun);
+document.getElementById('doneRunBtn')?.addEventListener('click', doneRun);
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);
 document.getElementById('saveSubItemBtn').addEventListener('click', saveSubItem);
 document.getElementById('subItemOverlay').addEventListener('click', e=>{if(e.target===document.getElementById('subItemOverlay')) closeSubItemModal();});
