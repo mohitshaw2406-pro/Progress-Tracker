@@ -16,6 +16,8 @@
 <link rel="apple-touch-icon" href="progress-tracker-icon-192.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
 
@@ -407,6 +409,15 @@
         </div>
       </div>
 
+      <!-- R3-B Completed Run Route Map -->
+      <div class="run-route-container" id="runSummaryMapContainer">
+        <div class="run-route-map" id="runSummaryMap"></div>
+        <div class="run-route-fallback" id="runSummaryMapFallback" style="display: none;">
+          <span class="run-route-fallback-icon">🗺️</span>
+          <span>Route unavailable for this run</span>
+        </div>
+      </div>
+
       <div class="run-finished-actions">
         <button type="button" class="run-btn-discard" id="discardRunBtn">Discard Run</button>
         <button type="button" class="run-btn-done" id="doneRunBtn">Done</button>
@@ -497,6 +508,24 @@
     <label class="f-lbl">Duration (optional)</label><input class="f-inp" id="siDuration" type="text" placeholder="e.g. 30 min, 5km"/>
     <label class="f-lbl">Emoji</label><div class="emoji-pick" id="siEmojiPick"></div>
     <div class="modal-actions"><button class="btn-cancel" id="closeSubItemBtn">Cancel</button><button class="btn-save" id="saveSubItemBtn">Save ✓</button></div>
+  </div>
+</div>
+
+<!-- ROUTE MAP MODAL (R3-B) -->
+<div class="overlay" id="routeModalOverlay" style="display: none; z-index: 460;">
+  <div class="modal route-modal">
+    <div class="route-modal-header">
+      <div class="route-modal-title" id="routeModalTitle">Run Route 🗺️</div>
+      <button type="button" class="route-modal-close" id="closeRouteModalBtn" aria-label="Close route map">✕</button>
+    </div>
+    <div class="route-modal-meta" id="routeModalMeta"></div>
+    <div class="run-route-container route-modal-map-wrap">
+      <div class="run-route-map" id="historyRouteMap"></div>
+      <div class="run-route-fallback" id="historyRouteMapFallback" style="display: none;">
+        <span class="run-route-fallback-icon">🗺️</span>
+        <span>Route unavailable for this run</span>
+      </div>
+    </div>
   </div>
 </div>
 

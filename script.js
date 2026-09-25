@@ -2588,6 +2588,173 @@ function stopGpsWatch() {
   }
 }
 
+// ===================== R3-B ROUTE MAP RENDERING ENGINE =====================
+let summaryMapInstance = null;
+let historyMapInstance = null;
+
+function destroySummaryMap() {
+  if (summaryMapInstance) {
+    try {
+      summaryMapInstance.remove();
+    } catch (e) {
+      console.warn('Error removing summary map:', e);
+    }
+    summaryMapInstance = null;
+  }
+}
+
+function destroyHistoryMap() {
+  if (historyMapInstance) {
+    try {
+      historyMapInstance.remove();
+    } catch (e) {
+      console.warn('Error removing history map:', e);
+    }
+    historyMapInstance = null;
+  }
+}
+
+function getValidRoutePoints(route) {
+  if (!Array.isArray(route)) return [];
+  return route.filter(p => (
+    p &&
+    typeof p.lat === 'number' &&
+    typeof p.lon === 'number' &&
+    !isNaN(p.lat) &&
+    !isNaN(p.lon) &&
+    p.lat >= -90 &&
+    p.lat <= 90 &&
+    p.lon >= -180 &&
+    p.lon <= 180
+  ));
+}
+
+function renderLeafletRoute(containerId, fallbackId, routePoints) {
+  const mapEl = document.getElementById(containerId);
+  const fallbackEl = document.getElementById(fallbackId);
+  if (!mapEl) return null;
+
+  const validPoints = getValidRoutePoints(routePoints);
+
+  if (validPoints.length < 2) {
+    if (fallbackEl) fallbackEl.style.display = 'flex';
+    mapEl.style.display = 'none';
+    if (containerId === 'runSummaryMap') destroySummaryMap();
+    if (containerId === 'historyRouteMap') destroyHistoryMap();
+    return null;
+  }
+
+  if (fallbackEl) fallbackEl.style.display = 'none';
+  mapEl.style.display = 'block';
+
+  // Prevent duplicate Leaflet map initialization on the same DOM element
+  if (containerId === 'runSummaryMap') destroySummaryMap();
+  if (containerId === 'historyRouteMap') destroyHistoryMap();
+
+  if (typeof L === 'undefined' || !L.map) {
+    console.warn('Leaflet library is not available yet');
+    if (fallbackEl) fallbackEl.style.display = 'flex';
+    mapEl.style.display = 'none';
+    return null;
+  }
+
+  try {
+    const map = L.map(containerId, {
+      zoomControl: true,
+      attributionControl: true,
+      dragging: true,
+      touchZoom: true,
+      scrollWheelZoom: false
+    });
+
+    // OpenStreetMap standard tile layer (free, no API key required)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const latLngs = validPoints.map(p => [p.lat, p.lon]);
+
+    // Route Polyline
+    const polyline = L.polyline(latLngs, {
+      color: '#7c5af5',
+      weight: 4,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+
+    // Custom Start & Finish Markers
+    const startPoint = validPoints[0];
+    const finishPoint = validPoints[validPoints.length - 1];
+
+    const startIcon = L.divIcon({
+      className: 'route-marker-pin',
+      html: '<div class="marker-dot start-dot"><span>S</span></div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+
+    const finishIcon = L.divIcon({
+      className: 'route-marker-pin',
+      html: '<div class="marker-dot finish-dot"><span>F</span></div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+
+    L.marker([startPoint.lat, startPoint.lon], { icon: startIcon, title: 'Start' }).addTo(map);
+    L.marker([finishPoint.lat, finishPoint.lon], { icon: finishIcon, title: 'Finish' }).addTo(map);
+
+    // Fit map bounds to the route
+    const bounds = polyline.getBounds();
+    map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+
+    // Invalidate size once container is rendered in DOM
+    setTimeout(() => {
+      try {
+        map.invalidateSize();
+        map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+      } catch (e) {}
+    }, 120);
+
+    return map;
+  } catch (err) {
+    console.error('Leaflet map creation failed:', err);
+    if (fallbackEl) fallbackEl.style.display = 'flex';
+    mapEl.style.display = 'none';
+    return null;
+  }
+}
+
+function openRouteModal(runId) {
+  if (!runId || !Array.isArray(S.runs)) return;
+  const run = S.runs.find(r => r.id === runId);
+  if (!run) return;
+
+  const overlay = document.getElementById('routeModalOverlay');
+  const titleEl = document.getElementById('routeModalTitle');
+  const metaEl = document.getElementById('routeModalMeta');
+  if (!overlay) return;
+
+  const dateStr = formatRunDateTime(run.completedAt) || 'Run';
+  const distStr = formatRunDistance(run.distanceMeters);
+  const timeStr = formatRunTime(run.durationSec);
+  const paceStr = run.averagePace || '-- /km';
+
+  if (titleEl) titleEl.textContent = `Route: ${dateStr}`;
+  if (metaEl) metaEl.textContent = `${distStr} · ${timeStr} · ${paceStr}`;
+
+  overlay.style.display = 'flex';
+
+  historyMapInstance = renderLeafletRoute('historyRouteMap', 'historyRouteMapFallback', run.route);
+}
+
+function closeRouteModal() {
+  const overlay = document.getElementById('routeModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+  destroyHistoryMap();
+}
+
 function renderRunningView() {
   const idleCard = document.getElementById('runIdleCard');
   const activeCard = document.getElementById('runActiveCard');
@@ -2609,6 +2776,7 @@ function renderRunningView() {
     if (errorCard) errorCard.style.display = 'none';
     statusBadge.textContent = 'Ready';
     statusBadge.className = 'run-status-badge status-idle';
+    destroySummaryMap();
   } else if (runningSession.state === 'RUNNING') {
     idleCard.style.display = 'none';
     activeCard.style.display = 'block';
@@ -2621,6 +2789,7 @@ function renderRunningView() {
     if (pauseBtn) pauseBtn.style.display = 'inline-flex';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (finishBtn) finishBtn.style.display = 'inline-flex';
+    destroySummaryMap();
     updateRunMetricsUI();
   } else if (runningSession.state === 'PAUSED') {
     idleCard.style.display = 'none';
@@ -2634,6 +2803,7 @@ function renderRunningView() {
     if (pauseBtn) pauseBtn.style.display = 'none';
     if (resumeBtn) resumeBtn.style.display = 'inline-flex';
     if (finishBtn) finishBtn.style.display = 'inline-flex';
+    destroySummaryMap();
     updateGpsIndicator('idle', 'GPS Paused');
     updateRunMetricsUI();
   } else if (runningSession.state === 'FINISHED') {
@@ -2648,7 +2818,8 @@ function renderRunningView() {
       distanceMeters: runningSession.totalDistanceMeters || 0,
       durationSec: Math.floor(getActiveElapsedMs() / 1000),
       averagePace: calculateAveragePace(getActiveElapsedMs(), runningSession.totalDistanceMeters || 0),
-      completedAt: Date.now()
+      completedAt: Date.now(),
+      route: Array.isArray(runningSession.route) ? [...runningSession.route] : []
     };
 
     const sumDist = document.getElementById('runSummaryDistance');
@@ -2663,10 +2834,14 @@ function renderRunningView() {
       const formattedDate = formatRunDateTime(run.completedAt);
       sumDate.textContent = formattedDate ? `Completed on ${formattedDate}` : 'Workout summary';
     }
+
+    // R3-B: Render completed run route map
+    summaryMapInstance = renderLeafletRoute('runSummaryMap', 'runSummaryMapFallback', run.route);
   } else if (runningSession.state === 'ERROR') {
     idleCard.style.display = 'none';
     activeCard.style.display = 'none';
     finishedCard.style.display = 'none';
+    destroySummaryMap();
     if (errorCard) {
       errorCard.style.display = 'block';
       const desc = document.getElementById('runErrorDesc');
@@ -2855,6 +3030,7 @@ function deleteRun(runId) {
   const prevLen = S.runs.length;
   S.runs = S.runs.filter(r => r.id !== runId);
   if (S.runs.length !== prevLen) {
+    closeRouteModal();
     renderRunHistory();
     saveToFirebase();
     toast('Run deleted');
@@ -2910,6 +3086,8 @@ function renderRunHistory() {
     const formattedTime = formatRunTime(run.durationSec);
     const formattedPace = run.averagePace || '-- /km';
     const safeId = run.id || '';
+    const validPoints = getValidRoutePoints(run.route);
+    const hasRoute = validPoints.length >= 2;
 
     return `
       <div class="run-history-item" data-id="${safeId}">
@@ -2918,11 +3096,18 @@ function renderRunHistory() {
             <span class="run-history-badge-icon">🏃</span>
             <span class="run-history-date">${escapeHtml(formattedDate)}</span>
           </div>
-          <button type="button" class="run-history-delete-btn" aria-label="Delete run" title="Delete run from history" data-delete-run="${safeId}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-            </svg>
-          </button>
+          <div class="run-history-actions">
+            ${hasRoute ? `
+              <button type="button" class="run-history-route-btn" data-view-route="${safeId}" title="View Route Map">
+                <span>🗺️</span> View Route
+              </button>
+            ` : ''}
+            <button type="button" class="run-history-delete-btn" aria-label="Delete run" title="Delete run from history" data-delete-run="${safeId}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="run-history-stats-grid">
           <div class="run-history-stat">
@@ -2962,6 +3147,12 @@ if (typeof window !== 'undefined') {
   window.handleGpsError = handleGpsError;
   window.stopGpsWatch = stopGpsWatch;
   window.appendRoutePoint = appendRoutePoint;
+  window.openRouteModal = openRouteModal;
+  window.closeRouteModal = closeRouteModal;
+  window.destroySummaryMap = destroySummaryMap;
+  window.destroyHistoryMap = destroyHistoryMap;
+  window.renderLeafletRoute = renderLeafletRoute;
+  window.getValidRoutePoints = getValidRoutePoints;
 }
 
 // ===================== NAV =====================
@@ -2971,6 +3162,7 @@ function showPage(pg) {
   document.getElementById('pg-'+pg).classList.add('on');
   document.querySelector(`[data-pg="${pg}"]`).classList.add('on');
   if (pg !== 'today') closeQuickAdd();
+  if (pg !== 'running') closeRouteModal();
   if (pg==='weekly') renderWeekly();
   if (pg==='monthly') renderMonthly();
   if (pg==='manage') renderManage();
@@ -3100,7 +3292,9 @@ document.getElementById('subBack').addEventListener('click', closeSubTracker);
 document.getElementById('habitDetailBack').addEventListener('click', closeHabitDetail);
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if (isQuickAddOpen()) {
+    if (document.getElementById('routeModalOverlay')?.style.display !== 'none') {
+      closeRouteModal();
+    } else if (isQuickAddOpen()) {
       closeQuickAdd();
     } else if (activeDetailHabitId) {
       closeHabitDetail();
@@ -3132,10 +3326,22 @@ document.getElementById('discardRunBtn')?.addEventListener('click', discardRun);
 document.getElementById('doneRunBtn')?.addEventListener('click', doneRun);
 document.getElementById('retryGpsBtn')?.addEventListener('click', startRun);
 document.getElementById('runHistoryList')?.addEventListener('click', e => {
+  const viewBtn = e.target.closest('[data-view-route]');
+  if (viewBtn) {
+    const runId = viewBtn.getAttribute('data-view-route');
+    if (runId) openRouteModal(runId);
+    return;
+  }
   const btn = e.target.closest('[data-delete-run]');
   if (btn) {
     const runId = btn.getAttribute('data-delete-run');
     if (runId) deleteRun(runId);
+  }
+});
+document.getElementById('closeRouteModalBtn')?.addEventListener('click', closeRouteModal);
+document.getElementById('routeModalOverlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('routeModalOverlay')) {
+    closeRouteModal();
   }
 });
 document.getElementById('closeSubItemBtn').addEventListener('click', closeSubItemModal);
