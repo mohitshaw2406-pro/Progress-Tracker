@@ -2184,7 +2184,18 @@ const runningSession = {
   isResumeBaseline: false,
   timerInterval: null,
   gpsStatus: 'idle', // 'idle' | 'acquiring' | 'active' | 'poor' | 'error'
-  errorMessage: null
+  errorMessage: null,
+  // Temporary Diagnostic State (R1-B Trace)
+  debug: {
+    callbackCount: 0,
+    hasCoords: false,
+    latestAccuracy: null,
+    acceptedPoints: 0,
+    rejectedPoints: 0,
+    lastRejectReason: 'None',
+    lastErrorCode: null,
+    lastErrorMessage: null
+  }
 };
 
 const GPS_OPTIONS = {
@@ -2276,35 +2287,89 @@ function updateRunMetricsUI() {
   if (timerEl) timerEl.textContent = formatRunTime(elapsedSec);
   if (distEl) distEl.textContent = formatRunDistance(distanceMeters);
   if (paceEl) paceEl.textContent = pace;
+
+  // Diagnostic panel updates
+  const dbgCb = document.getElementById('dbgCallback');
+  const dbgCoords = document.getElementById('dbgCoords');
+  const dbgAcc = document.getElementById('dbgAccuracy');
+  const dbgAccPts = document.getElementById('dbgAccepted');
+  const dbgRejPts = document.getElementById('dbgRejected');
+  const dbgRejReason = document.getElementById('dbgRejectReason');
+  const dbgRawDist = document.getElementById('dbgRawDist');
+  const dbgErr = document.getElementById('dbgError');
+
+  if (dbgCb) dbgCb.textContent = runningSession.debug.callbackCount > 0 ? `Yes (${runningSession.debug.callbackCount} calls)` : 'No (waiting...)';
+  if (dbgCoords) dbgCoords.textContent = runningSession.debug.hasCoords ? 'Yes' : 'No';
+  if (dbgAcc) dbgAcc.textContent = runningSession.debug.latestAccuracy !== null ? `±${runningSession.debug.latestAccuracy} m` : '--';
+  if (dbgAccPts) dbgAccPts.textContent = String(runningSession.debug.acceptedPoints);
+  if (dbgRejPts) dbgRejPts.textContent = String(runningSession.debug.rejectedPoints);
+  if (dbgRejReason) dbgRejReason.textContent = runningSession.debug.lastRejectReason;
+  if (dbgRawDist) dbgRawDist.textContent = `${runningSession.totalDistanceMeters.toFixed(2)} m`;
+  if (dbgErr) dbgErr.textContent = runningSession.debug.lastErrorCode ? `Code ${runningSession.debug.lastErrorCode}: ${runningSession.debug.lastErrorMessage}` : 'None';
 }
 
 function handleGpsSuccess(position) {
-  if (runningSession.state !== 'RUNNING') return;
+  runningSession.debug.callbackCount++;
 
-  const coords = position.coords;
-  if (!coords) return;
+  console.log(`[GPS Trace #1: Callback Received] Call #${runningSession.debug.callbackCount}, State: ${runningSession.state}`);
+
+  if (runningSession.state !== 'RUNNING') {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Not in RUNNING state (${runningSession.state})`;
+    console.warn(`[GPS Trace Rejected] Not running (state: ${runningSession.state})`);
+    updateRunMetricsUI();
+    return;
+  }
+
+  const coords = position ? position.coords : null;
+  if (!coords) {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = 'position.coords missing';
+    console.warn('[GPS Trace #2 Rejected] position.coords is missing');
+    updateRunMetricsUI();
+    return;
+  }
 
   const lat = coords.latitude;
   const lon = coords.longitude;
   const accuracy = coords.accuracy;
   const timestamp = position.timestamp || Date.now();
 
-  // Validate coordinates range
-  if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) return;
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
+  runningSession.debug.hasCoords = (typeof lat === 'number' && typeof lon === 'number' && !isNaN(lat) && !isNaN(lon));
+  runningSession.debug.latestAccuracy = (typeof accuracy === 'number' && !isNaN(accuracy)) ? Math.round(accuracy) : null;
 
-  // Filter 1: Reject readings with very poor accuracy (> 65m) to avoid severe noise
-  if (typeof accuracy === 'number' && accuracy > 65) {
-    updateGpsIndicator('poor', `Weak GPS (±${Math.round(accuracy)}m)`);
+  console.log(`[GPS Trace #2 & #3: Coords & Accuracy] Coords valid: ${runningSession.debug.hasCoords}, Accuracy: ${runningSession.debug.latestAccuracy}m`);
+
+  // Validate coordinates range
+  if (!runningSession.debug.hasCoords || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Invalid range (${lat}, ${lon})`;
+    console.warn(`[GPS Trace #2 Rejected] Invalid range: lat=${lat}, lon=${lon}`);
+    updateRunMetricsUI();
     return;
   }
 
-  updateGpsIndicator('active', 'GPS Active');
+  // Filter 1: Reject readings with very poor accuracy (> 100m) to avoid severe noise
+  if (typeof accuracy === 'number' && accuracy > 100) {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Accuracy > 100m (±${Math.round(accuracy)}m)`;
+    console.warn(`[GPS Trace #4 Rejected: Accuracy] accuracy=${accuracy}m > 100m threshold`);
+    updateGpsIndicator('poor', `Weak GPS (±${Math.round(accuracy)}m)`);
+    updateRunMetricsUI();
+    return;
+  }
+
+  updateGpsIndicator(
+    typeof accuracy === 'number' && accuracy > 50 ? 'poor' : 'active',
+    typeof accuracy === 'number' ? `GPS Active (±${Math.round(accuracy)}m)` : 'GPS Active'
+  );
 
   // Filter 2: First valid point sets the initial baseline or post-resume baseline
   if (!runningSession.lastPosition || runningSession.isResumeBaseline) {
     runningSession.lastPosition = { lat, lon, timestamp, accuracy };
     runningSession.isResumeBaseline = false;
+    runningSession.debug.acceptedPoints++;
+    console.log(`[GPS Trace #5: Baseline Set] First point or post-resume baseline established at accuracy ±${Math.round(accuracy)}m`);
     updateRunMetricsUI();
     return;
   }
@@ -2312,14 +2377,37 @@ function handleGpsSuccess(position) {
   // Filter 3: Compute consecutive segment distance
   const last = runningSession.lastPosition;
   const segmentMeters = haversineDistanceMeters(last.lat, last.lon, lat, lon);
-  const dtSec = Math.max(0.1, (timestamp - last.timestamp) / 1000);
+  const dtSec = (timestamp - last.timestamp) / 1000;
+
+  // Handle duplicate or out-of-order timestamp deltas (<= 0): ignore without advancing baseline
+  if (dtSec <= 0) {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Duplicate/stale timestamp (dt: ${dtSec.toFixed(2)}s)`;
+    console.warn(`[GPS Trace] Duplicate/stale timestamp (dt: ${dtSec.toFixed(2)}s). Ignoring without advancing baseline.`);
+    updateRunMetricsUI();
+    return;
+  }
+
+  // For very small positive timestamp deltas (< 0.5s), do not classify as speed spike; defer segment safely
+  if (dtSec < 0.5) {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Rapid callback deferred (dt: ${dtSec.toFixed(2)}s < 0.5s)`;
+    console.log(`[GPS Trace] Rapid callback deferred (dt: ${dtSec.toFixed(2)}s < 0.5s). Holding baseline.`);
+    updateRunMetricsUI();
+    return;
+  }
 
   // Filter 4: Sanity check against unrealistic speed spikes (teleportation/glitches)
   // Max running sprint speed threshold: 12 m/s (~43.2 km/h).
   const impliedSpeedMps = segmentMeters / dtSec;
+  console.log(`[GPS Trace #6: Segment Calculation] segment=${segmentMeters.toFixed(2)}m, dtSec=${dtSec.toFixed(2)}s, speed=${impliedSpeedMps.toFixed(2)}m/s`);
+
   if (impliedSpeedMps > 12.0) {
-    console.warn(`[GPS] Filtered speed jump: ${impliedSpeedMps.toFixed(1)} m/s, dist: ${segmentMeters.toFixed(1)}m`);
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Speed spike ${impliedSpeedMps.toFixed(1)}m/s (dist: ${segmentMeters.toFixed(1)}m, dt: ${dtSec.toFixed(1)}s)`;
+    console.warn(`[GPS Trace #4 Rejected: Speed Spike] ${impliedSpeedMps.toFixed(1)} m/s > 12.0 m/s threshold`);
     runningSession.lastPosition = { lat, lon, timestamp, accuracy };
+    updateRunMetricsUI();
     return;
   }
 
@@ -2327,12 +2415,23 @@ function handleGpsSuccess(position) {
   if (segmentMeters >= 1.5) {
     runningSession.totalDistanceMeters += segmentMeters;
     runningSession.lastPosition = { lat, lon, timestamp, accuracy };
+    runningSession.debug.acceptedPoints++;
+    console.log(`[GPS Trace #7 & #8: Distance Added] +${segmentMeters.toFixed(2)}m, Total: ${runningSession.totalDistanceMeters.toFixed(2)}m`);
+    updateRunMetricsUI();
+  } else {
+    runningSession.debug.rejectedPoints++;
+    runningSession.debug.lastRejectReason = `Stationary jitter (${segmentMeters.toFixed(2)}m < 1.5m)`;
+    console.log(`[GPS Trace Filter 5] Micro-jitter ${segmentMeters.toFixed(2)}m < 1.5m (holding baseline)`);
     updateRunMetricsUI();
   }
 }
 
 function handleGpsError(err) {
-  console.warn('[GPS Error]', err);
+  const code = err ? err.code : 'UNKNOWN';
+  const msg = err ? (err.message || 'No error message') : 'Unknown error';
+  runningSession.debug.lastErrorCode = code;
+  runningSession.debug.lastErrorMessage = msg;
+  console.error(`[GPS Error Callback] Code: ${code} (${code === 1 ? 'PERMISSION_DENIED' : code === 2 ? 'POSITION_UNAVAILABLE' : code === 3 ? 'TIMEOUT' : 'UNKNOWN'}), Message: "${msg}"`);
 
   let message = 'Unable to access your location.';
   let isFatal = false;
@@ -2349,6 +2448,7 @@ function handleGpsError(err) {
       case 3: // TIMEOUT
         if (runningSession.state === 'RUNNING' && runningSession.lastPosition) {
           updateGpsIndicator('poor', 'Searching for GPS signal...');
+          updateRunMetricsUI();
           return;
         }
         message = 'GPS connection timed out. Please check satellite visibility and try again.';
@@ -2367,6 +2467,7 @@ function handleGpsError(err) {
     renderRunningView();
   } else {
     updateGpsIndicator('poor', 'Weak GPS signal');
+    updateRunMetricsUI();
   }
 }
 
@@ -2499,6 +2600,16 @@ function startRun() {
   runningSession.lastPosition = null;
   runningSession.isResumeBaseline = false;
   runningSession.errorMessage = null;
+  runningSession.debug = {
+    callbackCount: 0,
+    hasCoords: false,
+    latestAccuracy: null,
+    acceptedPoints: 0,
+    rejectedPoints: 0,
+    lastRejectReason: 'None',
+    lastErrorCode: null,
+    lastErrorMessage: null
+  };
 
   startGpsWatch();
 
@@ -2582,6 +2693,16 @@ function discardRun() {
   runningSession.lastPosition = null;
   runningSession.isResumeBaseline = false;
   runningSession.errorMessage = null;
+  runningSession.debug = {
+    callbackCount: 0,
+    hasCoords: false,
+    latestAccuracy: null,
+    acceptedPoints: 0,
+    rejectedPoints: 0,
+    lastRejectReason: 'None',
+    lastErrorCode: null,
+    lastErrorMessage: null
+  };
 
   renderRunningView();
 }

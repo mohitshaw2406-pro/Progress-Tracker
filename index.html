@@ -364,6 +364,24 @@
           <span>🏁</span> FINISH
         </button>
       </div>
+
+      <!-- TEMPORARY R1-B GPS DIAGNOSTIC MONITOR -->
+      <div class="run-debug-panel" id="runDebugPanel" style="margin-top:16px;background:rgba(15,23,42,0.85);border:1px dashed #fbbf24;border-radius:14px;padding:12px 14px;font-size:11px;font-family:monospace;color:var(--txt);">
+        <div style="font-weight:700;color:#fbbf24;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span>🛠️ GPS DIAGNOSTIC MONITOR</span>
+          <span id="dbgStatusBadge" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#334155;color:#38bdf8;">ACTIVE</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:4px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">GPS Callback:</span><strong id="dbgCallback">No (waiting...)</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Lat/Lon Valid:</span><strong id="dbgCoords">No</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Latest Accuracy:</span><strong id="dbgAccuracy">--</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Accepted Points:</span><strong id="dbgAccepted" style="color:var(--grn)">0</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Rejected Points:</span><strong id="dbgRejected" style="color:var(--red)">0</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Last Reject Reason:</span><strong id="dbgRejectReason">None</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Raw distanceMeters:</span><strong id="dbgRawDist">0.00 m</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Last Error:</span><strong id="dbgError">None</strong></div>
+        </div>
+      </div>
     </div>
 
     <!-- 3. FINISHED STATE -->
