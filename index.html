@@ -285,6 +285,82 @@
       </div>
     </div>
 
+    <!-- RUNNING STATS (R4-A) -->
+    <div class="running-stats-card" id="runningStatsCard">
+      <div class="running-stats-header">
+        <div class="running-stats-title">🏃 Running Stats</div>
+        <div class="running-stats-sub">Derived overview of your completed running workouts</div>
+      </div>
+      <div class="running-stats-empty" id="runningStatsEmpty" style="display:none">
+        <div class="running-stats-empty-icon">🏃</div>
+        <div class="running-stats-empty-title">No completed runs recorded yet</div>
+        <div class="running-stats-empty-sub">Start and complete a run from the Running tab to see your running stats.</div>
+      </div>
+      <div class="running-stats-grid" id="runningStatsGrid">
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">🏃 Total Runs</div>
+          <div class="running-stats-item-val" id="rsTotalRuns">—</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">📏 Total Distance</div>
+          <div class="running-stats-item-val" id="rsTotalDistance">—</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">⏱️ Total Running Time</div>
+          <div class="running-stats-item-val" id="rsTotalTime">—</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">⚡ Average Pace</div>
+          <div class="running-stats-item-val" id="rsAvgPace">—</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">🚀 Best Pace</div>
+          <div class="running-stats-item-val" id="rsBestPace">—</div>
+          <div class="running-stats-item-sub" id="rsBestPaceSub">Fastest average pace</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">🎯 Avg Distance / Run</div>
+          <div class="running-stats-item-val" id="rsAvgDistance">—</div>
+          <div class="running-stats-item-sub" id="rsAvgDistanceSub">Average per workout</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">⏳ Avg Run Duration</div>
+          <div class="running-stats-item-val" id="rsAvgDuration">—</div>
+          <div class="running-stats-item-sub" id="rsAvgDurationSub">Average time per run</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">🏅 Longest Run</div>
+          <div class="running-stats-item-val" id="rsLongestRun">—</div>
+          <div class="running-stats-item-sub" id="rsLongestRunSub"></div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">📅 Longest Run Date & Details</div>
+          <div class="running-stats-item-val" id="rsLongestRunDate">—</div>
+          <div class="running-stats-item-sub" id="rsLongestRunDetails"></div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">🔥 Current Running Streak</div>
+          <div class="running-stats-item-val" id="rsCurrentStreak">—</div>
+          <div class="running-stats-item-sub" id="rsCurrentStreakSub">Consecutive running days</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">📈 Distance Trend</div>
+          <div class="running-stats-item-val" id="rsDistanceTrend">—</div>
+          <div class="running-stats-item-sub" id="rsDistanceTrendSub">Recent vs previous runs</div>
+        </div>
+        <div class="running-stats-item">
+          <div class="running-stats-item-lbl">🗓️ Current Week Summary</div>
+          <div class="running-stats-item-val" id="rsWeekSummary">—</div>
+          <div class="running-stats-item-sub" id="rsWeekSummarySub">Current week workouts</div>
+        </div>
+        <div class="running-stats-item running-stats-item-wide">
+          <div class="running-stats-item-lbl">📅 Last Run</div>
+          <div class="running-stats-item-val" id="rsLastRun">—</div>
+          <div class="running-stats-item-sub" id="rsLastRunSub"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="lbl">Last 12 weeks — Activity Heatmap</div>
     <div class="heatmap-wrap">
       <div class="heatmap-title"><span>🟩Heatmap</span><span style="font-size:10px;color:var(--muted);font-weight:400">Last 84 days</span></div>

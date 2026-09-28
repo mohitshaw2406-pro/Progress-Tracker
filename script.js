@@ -104,6 +104,7 @@ function resetState() {
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
   renderHabitInsights();
+  renderRunningStats();
   if (typeof renderRunHistory === 'function') renderRunHistory();
 }
 
@@ -141,6 +142,7 @@ async function loadFromFirebase() {
     } finally {
       isRunsLoading = false;
       if (typeof renderRunHistory === 'function') renderRunHistory();
+      if (typeof renderRunningStats === 'function') renderRunningStats();
     }
     updateSyncLabel('locally saved');
     return;
@@ -167,6 +169,7 @@ async function loadFromFirebase() {
   } finally {
     isRunsLoading = false;
     if (typeof renderRunHistory === 'function') renderRunHistory();
+    if (typeof renderRunningStats === 'function') renderRunningStats();
   }
 }
 
@@ -224,6 +227,7 @@ function subscribeToChanges() {
       };
       renderToday();
       if (typeof renderRunHistory === 'function') renderRunHistory();
+      if (typeof renderRunningStats === 'function') renderRunningStats();
       updateSyncLabel('abhi');
     }
   });
@@ -1288,7 +1292,15 @@ function renderPersonalRecords() {
 }
 
 // ===================== STATS =====================
-function renderStats() { renderPersonalRecords(); renderHabitInsights(); renderHeatmap(); renderPieChart(); renderTopHabits(); renderLineChart(); }
+function renderStats() {
+  renderPersonalRecords();
+  renderHabitInsights();
+  renderRunningStats();
+  renderHeatmap();
+  renderPieChart();
+  renderTopHabits();
+  renderLineChart();
+}
 
 // ===================== HABIT INSIGHTS =====================
 function getDateKeysInRange(startKey, endKey) {
@@ -1705,6 +1717,461 @@ function renderHabitInsights() {
 if (typeof window !== 'undefined') {
   window.getHabitInsights = getHabitInsights;
   window.renderHabitInsights = renderHabitInsights;
+}
+
+// ===================== RUNNING STATS (R4-A & R4-B) =====================
+function getRunningStreak(runs) {
+  if (!Array.isArray(runs) || runs.length === 0) return 0;
+  const tk = todayKey();
+  const runDays = new Set();
+
+  runs.forEach(r => {
+    if (!r) return;
+    const ts = typeof r.completedAt === 'number' && !isNaN(r.completedAt)
+      ? r.completedAt
+      : (r.completedAt ? new Date(r.completedAt).getTime() : null);
+    if (ts && !isNaN(ts)) {
+      const k = dkey(new Date(ts));
+      if (k <= tk) {
+        runDays.add(k);
+      }
+    }
+  });
+
+  if (runDays.size === 0) return 0;
+
+  const now = today();
+  now.setHours(0, 0, 0, 0);
+
+  let cur = new Date(now);
+  let streak = 0;
+
+  if (runDays.has(tk)) {
+    streak = 1;
+    cur.setDate(cur.getDate() - 1);
+  } else {
+    cur.setDate(cur.getDate() - 1);
+    if (!runDays.has(dkey(cur))) {
+      return 0;
+    }
+    streak = 1;
+    cur.setDate(cur.getDate() - 1);
+  }
+
+  while (streak < 9999) {
+    const k = dkey(cur);
+    if (runDays.has(k)) {
+      streak++;
+      cur.setDate(cur.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
+function getRunPaceSecPerKm(r) {
+  if (!r || typeof r !== 'object') return null;
+
+  // 1. Calculate from durationSec and distanceMeters
+  const dMeters = typeof r.distanceMeters === 'number' && !isNaN(r.distanceMeters) ? r.distanceMeters : 0;
+  const dSec = typeof r.durationSec === 'number' && !isNaN(r.durationSec) ? r.durationSec : 0;
+
+  if (dMeters >= 15 && dSec >= 3) {
+    const km = dMeters / 1000;
+    const secPerKm = dSec / km;
+    // Valid running pace: between 60 sec/km (1:00/km) and 3600 sec/km (60:00/km)
+    if (isFinite(secPerKm) && !isNaN(secPerKm) && secPerKm >= 60 && secPerKm <= 3600) {
+      return secPerKm;
+    }
+  }
+
+  // 2. Fallback: Parse averagePace string if present (e.g. "5:30 /km")
+  if (typeof r.averagePace === 'string') {
+    const match = r.averagePace.trim().match(/^(\d+):(\d{1,2})\s*\/km$/);
+    if (match) {
+      const mins = parseInt(match[1], 10);
+      const secs = parseInt(match[2], 10);
+      if (!isNaN(mins) && !isNaN(secs) && secs < 60) {
+        const totalSec = mins * 60 + secs;
+        if (totalSec >= 60 && totalSec <= 3600) {
+          return totalSec;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function getRunningStatsData(runs) {
+  const validRuns = Array.isArray(runs) ? runs.filter(r => r && typeof r === 'object') : [];
+  const totalRuns = validRuns.length;
+
+  if (totalRuns === 0) {
+    return {
+      hasRuns: false,
+      totalRuns: 0,
+      totalDistanceMeters: 0,
+      totalDurationSec: 0,
+      overallAvgPace: '-- /km',
+      longestRun: null,
+      currentStreak: 0,
+      lastRun: null,
+      avgDistanceMeters: 0,
+      avgDistanceStr: '0 m',
+      avgDurationSec: 0,
+      avgDurationStr: '00:00:00',
+      bestPace: '-- /km',
+      longestRunDateStr: '—',
+      longestRunDetailsStr: '',
+      distanceTrend: '—',
+      distanceTrendSub: '',
+      weekRunCount: 0,
+      weekDistanceMeters: 0,
+      weekDurationSec: 0
+    };
+  }
+
+  let totalDistanceMeters = 0;
+  let totalDurationSec = 0;
+  let longestRun = null;
+  let maxDistanceMeters = -1;
+  let lastRun = null;
+  let maxCompletedAt = -1;
+  let bestSecPerKm = Infinity;
+
+  validRuns.forEach(r => {
+    const dMeters = typeof r.distanceMeters === 'number' && !isNaN(r.distanceMeters) && r.distanceMeters >= 0
+      ? r.distanceMeters
+      : 0;
+    const dSec = typeof r.durationSec === 'number' && !isNaN(r.durationSec) && r.durationSec >= 0
+      ? r.durationSec
+      : 0;
+    const completedTs = typeof r.completedAt === 'number' && !isNaN(r.completedAt)
+      ? r.completedAt
+      : (r.completedAt ? new Date(r.completedAt).getTime() : 0);
+
+    totalDistanceMeters += dMeters;
+    totalDurationSec += dSec;
+
+    if (dMeters > maxDistanceMeters) {
+      maxDistanceMeters = dMeters;
+      longestRun = r;
+    }
+
+    if (completedTs > maxCompletedAt) {
+      maxCompletedAt = completedTs;
+      lastRun = r;
+    }
+
+    const paceSec = getRunPaceSecPerKm(r);
+    if (paceSec !== null && paceSec < bestSecPerKm) {
+      bestSecPerKm = paceSec;
+    }
+  });
+
+  const totalDurationMs = totalDurationSec * 1000;
+  const overallAvgPace = calculateAveragePace(totalDurationMs, totalDistanceMeters);
+  const currentStreak = getRunningStreak(validRuns);
+
+  // R4-B derived metrics
+  const avgDistanceMeters = totalRuns > 0 ? (totalDistanceMeters / totalRuns) : 0;
+  const avgDistanceStr = formatRunDistance(avgDistanceMeters);
+
+  const avgDurationSec = totalRuns > 0 ? Math.round(totalDurationSec / totalRuns) : 0;
+  const avgDurationStr = formatRunTime(avgDurationSec);
+
+  const bestPace = isFinite(bestSecPerKm)
+    ? `${Math.floor(bestSecPerKm / 60)}:${String(Math.floor(bestSecPerKm % 60)).padStart(2, '0')} /km`
+    : '-- /km';
+
+  // Longest run date & details
+  let longestRunDateStr = '—';
+  let longestRunDetailsStr = '';
+  if (longestRun && typeof longestRun.distanceMeters === 'number' && longestRun.distanceMeters > 0) {
+    const lTs = typeof longestRun.completedAt === 'number' && !isNaN(longestRun.completedAt)
+      ? longestRun.completedAt
+      : (longestRun.completedAt ? new Date(longestRun.completedAt).getTime() : null);
+    if (lTs) {
+      const ld = new Date(lTs);
+      longestRunDateStr = isNaN(ld.getTime()) ? '—' : ld.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    const lDistStr = formatRunDistance(longestRun.distanceMeters);
+    const lDurStr = formatRunTime(longestRun.durationSec);
+    const lPaceStr = longestRun.averagePace || calculateAveragePace((longestRun.durationSec || 0) * 1000, longestRun.distanceMeters);
+    longestRunDetailsStr = `${lDistStr} · ${lDurStr} · ${lPaceStr}`;
+  }
+
+  // Recent distance trend
+  const sortedRuns = validRuns.slice().sort((a, b) => {
+    const tsA = typeof a.completedAt === 'number' && !isNaN(a.completedAt) ? a.completedAt : (a.completedAt ? new Date(a.completedAt).getTime() : 0);
+    const tsB = typeof b.completedAt === 'number' && !isNaN(b.completedAt) ? b.completedAt : (b.completedAt ? new Date(b.completedAt).getTime() : 0);
+    return tsB - tsA;
+  });
+
+  let distanceTrend = '—';
+  let distanceTrendSub = '';
+
+  if (sortedRuns.length === 1) {
+    const singleDist = typeof sortedRuns[0].distanceMeters === 'number' && sortedRuns[0].distanceMeters > 0 ? sortedRuns[0].distanceMeters : 0;
+    distanceTrend = '➡️ Baseline';
+    distanceTrendSub = `${formatRunDistance(singleDist)} (1 run logged)`;
+  } else if (sortedRuns.length >= 2) {
+    const k = sortedRuns.length < 4 ? 1 : Math.min(3, Math.floor(sortedRuns.length / 2));
+    const recent = sortedRuns.slice(0, k);
+    const previous = sortedRuns.slice(k, 2 * k);
+
+    const sumRecent = recent.reduce((acc, r) => acc + (typeof r.distanceMeters === 'number' && r.distanceMeters > 0 ? r.distanceMeters : 0), 0);
+    const sumPrev = previous.reduce((acc, r) => acc + (typeof r.distanceMeters === 'number' && r.distanceMeters > 0 ? r.distanceMeters : 0), 0);
+
+    const avgRecent = sumRecent / k;
+    const avgPrev = previous.length > 0 ? (sumPrev / previous.length) : 0;
+    const diff = avgRecent - avgPrev;
+
+    if (avgPrev === 0) {
+      if (avgRecent === 0) {
+        distanceTrend = '➡️ Steady';
+        distanceTrendSub = 'No distance recorded in recent runs';
+      } else {
+        distanceTrend = '↗️ +100%';
+        distanceTrendSub = `Recent avg ${formatRunDistance(avgRecent)} vs 0 m`;
+      }
+    } else {
+      const pct = Math.round((diff / avgPrev) * 100);
+      const kLabel = k === 1 ? 'Recent run' : `Recent ${k} runs`;
+      if (pct > 5) {
+        distanceTrend = `↗️ +${pct}%`;
+        distanceTrendSub = `${kLabel} avg ${formatRunDistance(avgRecent)} vs prev ${formatRunDistance(avgPrev)}`;
+      } else if (pct < -5) {
+        distanceTrend = `↘️ ${pct}%`;
+        distanceTrendSub = `${kLabel} avg ${formatRunDistance(avgRecent)} vs prev ${formatRunDistance(avgPrev)}`;
+      } else {
+        distanceTrend = `➡️ Steady (~${pct >= 0 ? '+' : ''}${pct}%)`;
+        distanceTrendSub = `${kLabel} avg ${formatRunDistance(avgRecent)} (consistent)`;
+      }
+    }
+  }
+
+  // Current week summary (Sun - Sat)
+  const weekDays = typeof getWeekDays === 'function' ? getWeekDays(0) : [];
+  let weekStartKey = '';
+  let weekEndKey = '';
+  if (Array.isArray(weekDays) && weekDays.length === 7) {
+    weekStartKey = dkey(weekDays[0]);
+    weekEndKey = dkey(weekDays[6]);
+  } else {
+    const d = new Date(today());
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    weekStartKey = dkey(d);
+    const end = new Date(d);
+    end.setDate(end.getDate() + 6);
+    weekEndKey = dkey(end);
+  }
+
+  let weekRunCount = 0;
+  let weekDistanceMeters = 0;
+  let weekDurationSec = 0;
+
+  validRuns.forEach(r => {
+    const ts = typeof r.completedAt === 'number' && !isNaN(r.completedAt)
+      ? r.completedAt
+      : (r.completedAt ? new Date(r.completedAt).getTime() : null);
+    if (!ts || isNaN(ts)) return;
+    const rKey = dkey(new Date(ts));
+    if (rKey >= weekStartKey && rKey <= weekEndKey) {
+      weekRunCount++;
+      const dMeters = typeof r.distanceMeters === 'number' && !isNaN(r.distanceMeters) && r.distanceMeters > 0 ? r.distanceMeters : 0;
+      const dSec = typeof r.durationSec === 'number' && !isNaN(r.durationSec) && r.durationSec > 0 ? r.durationSec : 0;
+      weekDistanceMeters += dMeters;
+      weekDurationSec += dSec;
+    }
+  });
+
+  return {
+    hasRuns: true,
+    totalRuns,
+    totalDistanceMeters,
+    totalDurationSec,
+    overallAvgPace,
+    longestRun,
+    currentStreak,
+    lastRun,
+    avgDistanceMeters,
+    avgDistanceStr,
+    avgDurationSec,
+    avgDurationStr,
+    bestPace,
+    longestRunDateStr,
+    longestRunDetailsStr,
+    distanceTrend,
+    distanceTrendSub,
+    weekRunCount,
+    weekDistanceMeters,
+    weekDurationSec
+  };
+}
+
+function renderRunningStats() {
+  const card = document.getElementById('runningStatsCard');
+  if (!card) return;
+
+  const emptyEl = document.getElementById('runningStatsEmpty');
+  const gridEl = document.getElementById('runningStatsGrid');
+
+  const stats = getRunningStatsData(S.runs);
+
+  if (!stats.hasRuns) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (gridEl) gridEl.style.display = 'none';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (gridEl) gridEl.style.display = 'grid';
+
+  // 1. Total Runs
+  const totalRunsEl = document.getElementById('rsTotalRuns');
+  if (totalRunsEl) {
+    totalRunsEl.textContent = `${stats.totalRuns} ${stats.totalRuns === 1 ? 'run' : 'runs'}`;
+  }
+
+  // 2. Total Distance
+  const totalDistanceEl = document.getElementById('rsTotalDistance');
+  if (totalDistanceEl) {
+    totalDistanceEl.textContent = formatRunDistance(stats.totalDistanceMeters);
+  }
+
+  // 3. Total Running Time
+  const totalTimeEl = document.getElementById('rsTotalTime');
+  if (totalTimeEl) {
+    totalTimeEl.textContent = formatRunTime(stats.totalDurationSec);
+  }
+
+  // 4. Average Pace
+  const avgPaceEl = document.getElementById('rsAvgPace');
+  if (avgPaceEl) {
+    avgPaceEl.textContent = stats.overallAvgPace;
+  }
+
+  // 5. Best Pace (R4-B)
+  const bestPaceEl = document.getElementById('rsBestPace');
+  const bestPaceSubEl = document.getElementById('rsBestPaceSub');
+  if (bestPaceEl) {
+    bestPaceEl.textContent = stats.bestPace;
+    if (bestPaceSubEl) {
+      bestPaceSubEl.textContent = stats.bestPace !== '-- /km' ? 'Fastest valid pace ⚡' : 'No pace recorded yet';
+    }
+  }
+
+  // 6. Average Distance per Run (R4-B)
+  const avgDistEl = document.getElementById('rsAvgDistance');
+  const avgDistSubEl = document.getElementById('rsAvgDistanceSub');
+  if (avgDistEl) {
+    avgDistEl.textContent = stats.avgDistanceStr;
+    if (avgDistSubEl) {
+      avgDistSubEl.textContent = `${stats.totalRuns} ${stats.totalRuns === 1 ? 'workout' : 'workouts'} recorded`;
+    }
+  }
+
+  // 7. Average Run Duration (R4-B)
+  const avgDurEl = document.getElementById('rsAvgDuration');
+  const avgDurSubEl = document.getElementById('rsAvgDurationSub');
+  if (avgDurEl) {
+    avgDurEl.textContent = stats.avgDurationStr;
+    if (avgDurSubEl) {
+      avgDurSubEl.textContent = 'Average time per run';
+    }
+  }
+
+  // 8. Longest Run (R4-A & R4-B)
+  const longestRunEl = document.getElementById('rsLongestRun');
+  const longestRunSubEl = document.getElementById('rsLongestRunSub');
+  if (longestRunEl) {
+    if (stats.longestRun && typeof stats.longestRun.distanceMeters === 'number' && stats.longestRun.distanceMeters > 0) {
+      longestRunEl.textContent = formatRunDistance(stats.longestRun.distanceMeters);
+      if (longestRunSubEl) {
+        const durStr = formatRunTime(stats.longestRun.durationSec);
+        const paceStr = stats.longestRun.averagePace || calculateAveragePace((stats.longestRun.durationSec || 0) * 1000, stats.longestRun.distanceMeters);
+        longestRunSubEl.textContent = `${stats.longestRunDateStr !== '—' ? stats.longestRunDateStr + ' · ' : ''}${durStr} · ${paceStr}`;
+      }
+    } else {
+      longestRunEl.textContent = '0 m';
+      if (longestRunSubEl) longestRunSubEl.textContent = 'No distance recorded';
+    }
+  }
+
+  // 9. Longest Run Date & Details (R4-B)
+  const longestRunDateEl = document.getElementById('rsLongestRunDate');
+  const longestRunDetailsEl = document.getElementById('rsLongestRunDetails');
+  if (longestRunDateEl) {
+    longestRunDateEl.textContent = stats.longestRunDateStr;
+    if (longestRunDetailsEl) {
+      longestRunDetailsEl.textContent = stats.longestRunDetailsStr || 'No details available';
+    }
+  }
+
+  // 10. Current Running Streak
+  const currentStreakEl = document.getElementById('rsCurrentStreak');
+  const currentStreakSubEl = document.getElementById('rsCurrentStreakSub');
+  if (currentStreakEl) {
+    currentStreakEl.textContent = `${stats.currentStreak} ${stats.currentStreak === 1 ? 'day' : 'days'}`;
+    if (currentStreakSubEl) {
+      currentStreakSubEl.textContent = stats.currentStreak > 0
+        ? 'Active running streak 🔥'
+        : 'Run today or yesterday to start a streak';
+    }
+  }
+
+  // 11. Recent Distance Trend (R4-B)
+  const distTrendEl = document.getElementById('rsDistanceTrend');
+  const distTrendSubEl = document.getElementById('rsDistanceTrendSub');
+  if (distTrendEl) {
+    distTrendEl.textContent = stats.distanceTrend;
+    if (distTrendSubEl) {
+      distTrendSubEl.textContent = stats.distanceTrendSub || 'Recent vs previous workouts';
+    }
+  }
+
+  // 12. Current Week Summary (R4-B)
+  const weekSummaryEl = document.getElementById('rsWeekSummary');
+  const weekSummarySubEl = document.getElementById('rsWeekSummarySub');
+  if (weekSummaryEl) {
+    weekSummaryEl.textContent = `${stats.weekRunCount} ${stats.weekRunCount === 1 ? 'run' : 'runs'} · ${formatRunDistance(stats.weekDistanceMeters)}`;
+    if (weekSummarySubEl) {
+      weekSummarySubEl.textContent = stats.weekRunCount > 0
+        ? `${formatRunDistance(stats.weekDistanceMeters)} total · ${formatRunTime(stats.weekDurationSec)}`
+        : 'No workouts logged this week yet';
+    }
+  }
+
+  // 13. Last Run
+  const lastRunEl = document.getElementById('rsLastRun');
+  const lastRunSubEl = document.getElementById('rsLastRunSub');
+  if (lastRunEl) {
+    if (stats.lastRun && stats.lastRun.completedAt) {
+      const dtStr = formatRunDateTime(stats.lastRun.completedAt);
+      lastRunEl.textContent = dtStr || 'Recently completed';
+      if (lastRunSubEl) {
+        const dStr = formatRunDistance(stats.lastRun.distanceMeters);
+        const tStr = formatRunTime(stats.lastRun.durationSec);
+        const pStr = stats.lastRun.averagePace || calculateAveragePace((stats.lastRun.durationSec || 0) * 1000, stats.lastRun.distanceMeters || 0);
+        lastRunSubEl.textContent = `${dStr} · ${tStr} · ${pStr}`;
+      }
+    } else {
+      lastRunEl.textContent = '—';
+      if (lastRunSubEl) lastRunSubEl.textContent = '';
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.getRunningStreak = getRunningStreak;
+  window.getRunPaceSecPerKm = getRunPaceSecPerKm;
+  window.getRunningStatsData = getRunningStatsData;
+  window.renderRunningStats = renderRunningStats;
 }
 
 let activeHeatmapDateKey = null;
@@ -3009,6 +3476,7 @@ function doneRun() {
       };
       S.runs.unshift(newEntry);
       renderRunHistory();
+      renderRunningStats();
       saveToFirebase();
       toast('Run saved to history! 🏃');
     } catch (err) {
@@ -3032,6 +3500,7 @@ function deleteRun(runId) {
   if (S.runs.length !== prevLen) {
     closeRouteModal();
     renderRunHistory();
+    renderRunningStats();
     saveToFirebase();
     toast('Run deleted');
   }
@@ -3153,6 +3622,10 @@ if (typeof window !== 'undefined') {
   window.destroyHistoryMap = destroyHistoryMap;
   window.renderLeafletRoute = renderLeafletRoute;
   window.getValidRoutePoints = getValidRoutePoints;
+  window.getRunPaceSecPerKm = getRunPaceSecPerKm;
+  window.getRunningStreak = getRunningStreak;
+  window.getRunningStatsData = getRunningStatsData;
+  window.renderRunningStats = renderRunningStats;
 }
 
 // ===================== NAV =====================
