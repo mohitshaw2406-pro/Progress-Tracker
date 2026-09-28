@@ -648,6 +648,95 @@
         <div class="winter-metric-sub">Winter Arc pace</div>
       </div>
     </div>
+
+    <!-- WINTER ARC GOALS (R5-B) -->
+    <div class="winter-goals-card" id="winterGoalsCard">
+      <div class="winter-goals-header">
+        <div class="winter-goals-title-wrap">
+          <div class="winter-goals-title">🎯 Winter Arc Goals</div>
+          <div class="winter-goals-sub">Custom targets for the 92-day challenge</div>
+        </div>
+        <button class="btn-sm winter-edit-goals-btn" id="waEditGoalsBtn">⚙️ Edit Goals</button>
+      </div>
+
+      <div class="winter-goals-grid" id="waGoalsList">
+        <!-- Rendered via renderWinterArcGoals() -->
+      </div>
+    </div>
+
+    <!-- WINTER ARC ACTIVITY (R5-C) -->
+    <div class="winter-activity-section" id="winterActivitySection">
+      <div class="winter-section-header">
+        <div class="winter-section-title">📈 Winter Arc Activity</div>
+        <div class="winter-section-sub">Daily consistency, monthly milestones & performance highlights</div>
+      </div>
+
+      <!-- HIGHLIGHTS -->
+      <div class="winter-highlights-card">
+        <div class="winter-subcard-title">🌟 Winter Arc Highlights</div>
+        <div class="winter-highlights-grid">
+          <div class="winter-hl-item">
+            <div class="winter-hl-lbl">⚡ Most Active Day</div>
+            <div class="winter-hl-val" id="waHlMostActiveDay">No activity yet</div>
+            <div class="winter-hl-sub">Peak daily volume</div>
+          </div>
+          <div class="winter-hl-item">
+            <div class="winter-hl-lbl">🏆 Longest Run</div>
+            <div class="winter-hl-val" id="waHlLongestRun">--</div>
+            <div class="winter-hl-sub">Best distance in arc</div>
+          </div>
+          <div class="winter-hl-item">
+            <div class="winter-hl-lbl">📏 Total Distance</div>
+            <div class="winter-hl-val" id="waHlTotalDistance">0.00 km</div>
+            <div class="winter-hl-sub">Arc road mileage</div>
+          </div>
+          <div class="winter-hl-item">
+            <div class="winter-hl-lbl">🏃 Total Runs</div>
+            <div class="winter-hl-val" id="waHlTotalRuns">0 runs</div>
+            <div class="winter-hl-sub">Completed sessions</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MONTHLY SUMMARIES -->
+      <div class="winter-monthly-card">
+        <div class="winter-subcard-title">📅 Monthly Summaries</div>
+        <div class="winter-monthly-grid" id="waMonthlyGrid">
+          <!-- Rendered via renderWinterArc() -->
+        </div>
+      </div>
+
+      <!-- ACTIVITY CALENDAR -->
+      <div class="winter-calendar-card">
+        <div class="winter-cal-top">
+          <div>
+            <div class="winter-subcard-title">🗓️ 92-Day Activity Calendar</div>
+            <div class="winter-cal-hint">1 Oct 2026 – 31 Dec 2026 • Color intensity reflects combined habit and run activity</div>
+          </div>
+          <div class="winter-cal-legend">
+            <div class="wac-leg-item"><span class="wac-chip future"></span> Future</div>
+            <div class="wac-leg-item"><span class="wac-chip l0"></span> None</div>
+            <div class="wac-leg-item"><span class="wac-chip l1"></span> Light</div>
+            <div class="wac-leg-item"><span class="wac-chip l2"></span> Med</div>
+            <div class="wac-leg-item"><span class="wac-chip l3"></span> High</div>
+            <div class="wac-leg-item"><span class="wac-chip l4"></span> Peak</div>
+          </div>
+        </div>
+
+        <div class="winter-calendar-months" id="waCalendarMonths">
+          <!-- Rendered via renderWinterArc() -->
+        </div>
+      </div>
+
+      <!-- GOAL PROGRESS OVERVIEW -->
+      <div class="winter-goal-overview-card">
+        <div class="winter-subcard-title">🎯 Goal Progress Overview</div>
+        <div class="winter-goal-overview-sub">Direct correlation between logged activity and Winter Arc targets</div>
+        <div class="winter-goal-overview-grid" id="waGoalOverviewGrid">
+          <!-- Rendered via renderWinterArc() -->
+        </div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -724,6 +813,31 @@
         <span class="run-route-fallback-icon">🗺️</span>
         <span>Route unavailable for this run</span>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- WINTER ARC GOALS MODAL (R5-B) -->
+<div class="overlay" id="winterGoalsModal" style="display: none; z-index: 470;">
+  <div class="modal">
+    <div class="modal-title">Edit Winter Arc Goals 🎯</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Configure your targets for 1 Oct – 31 Dec 2026</div>
+
+    <label class="f-lbl">Target Runs</label>
+    <input class="f-inp" id="waInputRuns" type="number" min="1" max="1000" placeholder="e.g. 30"/>
+
+    <label class="f-lbl">Target Distance (km)</label>
+    <input class="f-inp" id="waInputDistance" type="number" min="1" max="10000" step="any" placeholder="e.g. 100"/>
+
+    <label class="f-lbl">Target Habit Completions</label>
+    <input class="f-inp" id="waInputHabits" type="number" min="1" max="10000" placeholder="e.g. 500"/>
+
+    <label class="f-lbl">Target Running Days</label>
+    <input class="f-inp" id="waInputRunningDays" type="number" min="1" max="92" placeholder="e.g. 30"/>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" id="waCancelGoalsBtn">Cancel</button>
+      <button class="btn-save" id="waSaveGoalsBtn">Save Goals ✓</button>
     </div>
   </div>
 </div>

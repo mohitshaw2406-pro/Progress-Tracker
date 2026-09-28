@@ -79,7 +79,13 @@ function getInitialState() {
     badges: [],
     subItems: { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
     subHistory: {},
-    runs: []
+    runs: [],
+    winterArcGoals: {
+      targetRuns: 30,
+      targetDistanceKm: 100,
+      targetHabits: 500,
+      targetRunningDays: 30
+    }
   };
 }
 
@@ -132,7 +138,13 @@ async function loadFromFirebase() {
           badges: data.badges || [],
           subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
           subHistory: data.subHistory || {},
-          runs: Array.isArray(data.runs) ? data.runs : []
+          runs: Array.isArray(data.runs) ? data.runs : [],
+          winterArcGoals: data.winterArcGoals || {
+            targetRuns: 30,
+            targetDistanceKm: 100,
+            targetHabits: 500,
+            targetRunningDays: 30
+          }
         };
       } else {
         if (!Array.isArray(S.runs)) S.runs = [];
@@ -159,7 +171,13 @@ async function loadFromFirebase() {
         badges: data.badges || [],
         subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
         subHistory: data.subHistory || {},
-        runs: Array.isArray(data.runs) ? data.runs : []
+        runs: Array.isArray(data.runs) ? data.runs : [],
+        winterArcGoals: data.winterArcGoals || {
+          targetRuns: 30,
+          targetDistanceKm: 100,
+          targetHabits: 500,
+          targetRunningDays: 30
+        }
       };
     } else {
       if (!Array.isArray(S.runs)) S.runs = [];
@@ -226,7 +244,13 @@ function subscribeToChanges() {
         badges: data.badges || [],
         subItems: data.subItems || {},
         subHistory: data.subHistory || {},
-        runs: Array.isArray(data.runs) ? data.runs : (S.runs || [])
+        runs: Array.isArray(data.runs) ? data.runs : (S.runs || []),
+        winterArcGoals: data.winterArcGoals || S.winterArcGoals || {
+          targetRuns: 30,
+          targetDistanceKm: 100,
+          targetHabits: 500,
+          targetRunningDays: 30
+        }
       };
       renderToday();
       if (typeof renderRunHistory === 'function') renderRunHistory();
@@ -2485,10 +2509,77 @@ if (typeof window !== 'undefined') {
   window.renderRunningPersonalRecords = renderRunningPersonalRecords;
 }
 
-// ===================== WINTER ARC (R5-A) =====================
+// ===================== WINTER ARC (R5-A & R5-B) =====================
 const WINTER_ARC_START = '2026-10-01';
 const WINTER_ARC_END = '2026-12-31';
 const WINTER_ARC_TOTAL_DAYS = 92;
+
+const DEFAULT_WINTER_ARC_GOALS = {
+  targetRuns: 30,
+  targetDistanceKm: 100,
+  targetHabits: 500,
+  targetRunningDays: 30
+};
+
+function getWinterArcGoals() {
+  const g = (S && S.winterArcGoals) || {};
+  return {
+    targetRuns: (typeof g.targetRuns === 'number' && !isNaN(g.targetRuns) && g.targetRuns > 0)
+      ? Math.round(g.targetRuns)
+      : DEFAULT_WINTER_ARC_GOALS.targetRuns,
+    targetDistanceKm: (typeof g.targetDistanceKm === 'number' && !isNaN(g.targetDistanceKm) && g.targetDistanceKm > 0)
+      ? Number(g.targetDistanceKm)
+      : DEFAULT_WINTER_ARC_GOALS.targetDistanceKm,
+    targetHabits: (typeof g.targetHabits === 'number' && !isNaN(g.targetHabits) && g.targetHabits > 0)
+      ? Math.round(g.targetHabits)
+      : DEFAULT_WINTER_ARC_GOALS.targetHabits,
+    targetRunningDays: (typeof g.targetRunningDays === 'number' && !isNaN(g.targetRunningDays) && g.targetRunningDays > 0)
+      ? Math.min(Math.round(g.targetRunningDays), WINTER_ARC_TOTAL_DAYS)
+      : DEFAULT_WINTER_ARC_GOALS.targetRunningDays
+  };
+}
+
+function saveWinterArcGoals(newGoals) {
+  if (!newGoals || typeof newGoals !== 'object') return;
+  const current = getWinterArcGoals();
+  const parsedRuns = parseInt(newGoals.targetRuns, 10);
+  const parsedDist = parseFloat(newGoals.targetDistanceKm);
+  const parsedHabits = parseInt(newGoals.targetHabits, 10);
+  const parsedDays = parseInt(newGoals.targetRunningDays, 10);
+
+  S.winterArcGoals = {
+    targetRuns: (!isNaN(parsedRuns) && parsedRuns > 0) ? parsedRuns : current.targetRuns,
+    targetDistanceKm: (!isNaN(parsedDist) && parsedDist > 0) ? parsedDist : current.targetDistanceKm,
+    targetHabits: (!isNaN(parsedHabits) && parsedHabits > 0) ? parsedHabits : current.targetHabits,
+    targetRunningDays: (!isNaN(parsedDays) && parsedDays > 0) ? Math.min(parsedDays, WINTER_ARC_TOTAL_DAYS) : current.targetRunningDays
+  };
+
+  saveToFirebase();
+  renderWinterArc();
+  toast('Winter Arc goals saved! 🎯');
+}
+
+function openWinterGoalsModal() {
+  const modal = document.getElementById('winterGoalsModal');
+  if (!modal) return;
+  const goals = getWinterArcGoals();
+  const inpRuns = document.getElementById('waInputRuns');
+  const inpDist = document.getElementById('waInputDistance');
+  const inpHabits = document.getElementById('waInputHabits');
+  const inpDays = document.getElementById('waInputRunningDays');
+
+  if (inpRuns) inpRuns.value = goals.targetRuns;
+  if (inpDist) inpDist.value = goals.targetDistanceKm;
+  if (inpHabits) inpHabits.value = goals.targetHabits;
+  if (inpDays) inpDays.value = goals.targetRunningDays;
+
+  modal.style.display = 'flex';
+}
+
+function closeWinterGoalsModal() {
+  const modal = document.getElementById('winterGoalsModal');
+  if (modal) modal.style.display = 'none';
+}
 
 function getWinterArcData(refDate) {
   const now = refDate ? new Date(refDate) : today();
@@ -2521,13 +2612,35 @@ function getWinterArcData(refDate) {
     periodStatus = 'active';
   }
 
+  // Day activity map for the entire Winter Arc (92 days)
+  const arcDayStats = {};
+  for (let m = 9; m <= 11; m++) {
+    const daysInM = (m === 9 || m === 11) ? 31 : 30;
+    for (let d = 1; d <= daysInM; d++) {
+      const k = `2026-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      arcDayStats[k] = {
+        dateKey: k,
+        monthIndex: m,
+        dayNum: d,
+        habitsCount: 0,
+        runsCount: 0,
+        distanceMeters: 0,
+        durationSec: 0
+      };
+    }
+  }
+
   // Habits completed strictly in Winter Arc period
   let totalHabitsCompleted = 0;
   const historyKeys = Object.keys(S.history || {});
   historyKeys.forEach(k => {
     if (k >= WINTER_ARC_START && k <= WINTER_ARC_END) {
       const done = getDone(k);
-      totalHabitsCompleted += [...new Set(done)].length;
+      const uniqueCount = [...new Set(done)].length;
+      totalHabitsCompleted += uniqueCount;
+      if (arcDayStats[k]) {
+        arcDayStats[k].habitsCount = uniqueCount;
+      }
     }
   });
 
@@ -2535,6 +2648,8 @@ function getWinterArcData(refDate) {
   let totalRuns = 0;
   let totalDistanceMeters = 0;
   let totalDurationSec = 0;
+  let longestRunMeters = 0;
+  const runningDaysSet = new Set();
 
   const validRuns = Array.isArray(S.runs) ? S.runs.filter(r => r && typeof r === 'object') : [];
   validRuns.forEach(r => {
@@ -2547,9 +2662,18 @@ function getWinterArcData(refDate) {
       const dSec = typeof r.durationSec === 'number' && !isNaN(r.durationSec) && r.durationSec > 0 ? r.durationSec : 0;
       totalDistanceMeters += dMeters;
       totalDurationSec += dSec;
+      if (dMeters > longestRunMeters) longestRunMeters = dMeters;
+      runningDaysSet.add(k);
+
+      if (arcDayStats[k]) {
+        arcDayStats[k].runsCount++;
+        arcDayStats[k].distanceMeters += dMeters;
+        arcDayStats[k].durationSec += dSec;
+      }
     }
   });
 
+  const totalRunningDays = runningDaysSet.size;
   const runningStreak = getRunningStreak(validRuns);
   const totalDurationMs = totalDurationSec * 1000;
   const avgPace = calculateAveragePace(totalDurationMs, totalDistanceMeters);
@@ -2570,6 +2694,196 @@ function getWinterArcData(refDate) {
     summaryText = `Winter Arc ended on 31 Dec 2026. Final achievements: ${totalHabitsCompleted} habit completions, ${totalRuns} runs, and ${formatRunDistance(totalDistanceMeters)} total distance.`;
   }
 
+  // 4 Goals calculations (R5-B)
+  const goals = getWinterArcGoals();
+  const distKm = totalDistanceMeters / 1000;
+  const distKmFormatted = distKm % 1 === 0 ? distKm.toFixed(0) : distKm.toFixed(1);
+
+  const runsPct = Math.min(100, Math.round((totalRuns / goals.targetRuns) * 100));
+  const distPct = Math.min(100, Math.round((distKm / goals.targetDistanceKm) * 100));
+  const habitsPct = Math.min(100, Math.round((totalHabitsCompleted / goals.targetHabits) * 100));
+  const daysPct = Math.min(100, Math.round((totalRunningDays / goals.targetRunningDays) * 100));
+
+  const goalsProgress = [
+    {
+      id: 'runs',
+      name: 'Target Runs',
+      icon: '🏃',
+      current: totalRuns,
+      target: goals.targetRuns,
+      unit: 'runs',
+      pct: runsPct,
+      isCompleted: totalRuns >= goals.targetRuns,
+      currentText: String(totalRuns),
+      targetText: `${goals.targetRuns} runs`
+    },
+    {
+      id: 'distance',
+      name: 'Target Distance',
+      icon: '📏',
+      current: distKm,
+      target: goals.targetDistanceKm,
+      unit: 'km',
+      pct: distPct,
+      isCompleted: distKm >= goals.targetDistanceKm,
+      currentText: distKmFormatted,
+      targetText: `${goals.targetDistanceKm} km`
+    },
+    {
+      id: 'habits',
+      name: 'Target Habit Completions',
+      icon: '✅',
+      current: totalHabitsCompleted,
+      target: goals.targetHabits,
+      unit: 'completions',
+      pct: habitsPct,
+      isCompleted: totalHabitsCompleted >= goals.targetHabits,
+      currentText: String(totalHabitsCompleted),
+      targetText: `${goals.targetHabits} habits`
+    },
+    {
+      id: 'runningDays',
+      name: 'Target Running Days',
+      icon: '📅',
+      current: totalRunningDays,
+      target: goals.targetRunningDays,
+      unit: 'days',
+      pct: daysPct,
+      isCompleted: totalRunningDays >= goals.targetRunningDays,
+      currentText: String(totalRunningDays),
+      targetText: `${goals.targetRunningDays} days`
+    }
+  ];
+
+  // ===================== R5-C: ACTIVITY VISUALIZATION =====================
+  const nowKey = dkey(now);
+
+  // 1. Highlights calculation
+  let bestDayKey = null;
+  let bestDayScore = 0;
+  let bestDayHabits = 0;
+  let bestDayRuns = 0;
+
+  Object.keys(arcDayStats).forEach(k => {
+    const day = arcDayStats[k];
+    const totalActivity = day.habitsCount + day.runsCount;
+    if (totalActivity > bestDayScore) {
+      bestDayScore = totalActivity;
+      bestDayKey = k;
+      bestDayHabits = day.habitsCount;
+      bestDayRuns = day.runsCount;
+    }
+  });
+
+  let mostActiveDayText = 'No activity yet';
+  if (bestDayKey && bestDayScore > 0) {
+    const parts = bestDayKey.split('-');
+    const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const formattedDate = `${parseInt(parts[2], 10)} ${mNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+    const hText = `${bestDayHabits} ${bestDayHabits === 1 ? 'habit' : 'habits'}`;
+    const rText = `${bestDayRuns} ${bestDayRuns === 1 ? 'run' : 'runs'}`;
+    mostActiveDayText = `${formattedDate} (${hText}, ${rText})`;
+  }
+
+  const highlights = {
+    mostActiveDay: mostActiveDayText,
+    longestRun: longestRunMeters > 0 ? formatRunDistance(longestRunMeters) : '--',
+    totalDistance: formatRunDistance(totalDistanceMeters),
+    totalRuns: `${totalRuns} ${totalRuns === 1 ? 'run' : 'runs'}`
+  };
+
+  // 2. Monthly summaries calculation (October, November, December)
+  const monthDefs = [
+    { prefix: '2026-10', shortName: 'October', fullName: 'October 2026', icon: '🍁', monthIndex: 9, daysCount: 31 },
+    { prefix: '2026-11', shortName: 'November', fullName: 'November 2026', icon: '🍂', monthIndex: 10, daysCount: 30 },
+    { prefix: '2026-12', shortName: 'December', fullName: 'December 2026', icon: '❄️', monthIndex: 11, daysCount: 31 }
+  ];
+
+  const monthlySummaries = monthDefs.map(m => {
+    let mRuns = 0;
+    let mDist = 0;
+    let mHabits = 0;
+
+    Object.keys(arcDayStats).forEach(k => {
+      if (k.startsWith(m.prefix)) {
+        const d = arcDayStats[k];
+        mRuns += d.runsCount;
+        mDist += d.distanceMeters;
+        mHabits += d.habitsCount;
+      }
+    });
+
+    return {
+      prefix: m.prefix,
+      shortName: m.shortName,
+      fullName: m.fullName,
+      icon: m.icon,
+      monthIndex: m.monthIndex,
+      daysCount: m.daysCount,
+      runCount: mRuns,
+      distanceMeters: mDist,
+      distanceStr: formatRunDistance(mDist),
+      habitCompletions: mHabits
+    };
+  });
+
+  // 3. Calendar months calculation
+  const calendarMonths = monthDefs.map(m => {
+    const days = [];
+    let activeDaysCount = 0;
+
+    for (let dayNum = 1; dayNum <= m.daysCount; dayNum++) {
+      const dateKey = `${m.prefix}-${String(dayNum).padStart(2, '0')}`;
+      const dayData = arcDayStats[dateKey] || { habitsCount: 0, runsCount: 0, distanceMeters: 0 };
+      const isFuture = dateKey > nowKey;
+
+      let level = 0;
+      let title = '';
+
+      if (isFuture) {
+        level = 'future';
+        title = `${dayNum} ${m.shortName} 2026 • Upcoming`;
+      } else if (dayData.habitsCount === 0 && dayData.runsCount === 0) {
+        level = 0;
+        title = `${dayNum} ${m.shortName} 2026 • No activity`;
+      } else {
+        activeDaysCount++;
+        const score = dayData.habitsCount + (dayData.runsCount * 2);
+        if (score <= 1) level = 1;
+        else if (score <= 3) level = 2;
+        else if (score <= 5) level = 3;
+        else level = 4;
+
+        const hStr = `${dayData.habitsCount} ${dayData.habitsCount === 1 ? 'habit' : 'habits'}`;
+        const rStr = `${dayData.runsCount} ${dayData.runsCount === 1 ? 'run' : 'runs'}`;
+        const distStr = dayData.runsCount > 0 ? ` (${formatRunDistance(dayData.distanceMeters)})` : '';
+        title = `${dayNum} ${m.shortName} 2026 • ${hStr}, ${rStr}${distStr}`;
+      }
+
+      days.push({
+        dayNum,
+        dateKey,
+        isFuture,
+        level,
+        habitsCount: dayData.habitsCount,
+        runsCount: dayData.runsCount,
+        distanceMeters: dayData.distanceMeters,
+        title
+      });
+    }
+
+    return {
+      prefix: m.prefix,
+      shortName: m.shortName,
+      fullName: m.fullName,
+      icon: m.icon,
+      monthIndex: m.monthIndex,
+      daysCount: m.daysCount,
+      activeDays: activeDaysCount,
+      days
+    };
+  });
+
   return {
     startDate: WINTER_ARC_START,
     endDate: WINTER_ARC_END,
@@ -2581,12 +2895,18 @@ function getWinterArcData(refDate) {
     summaryText,
     totalHabitsCompleted,
     totalRuns,
+    totalRunningDays,
     totalDistanceMeters,
     totalDistanceStr: formatRunDistance(totalDistanceMeters),
     totalDurationSec,
     totalDurationStr: formatRunTime(totalDurationSec),
     avgPace,
-    runningStreak
+    runningStreak,
+    goals,
+    goalsProgress,
+    highlights,
+    monthlySummaries,
+    calendarMonths
   };
 }
 
@@ -2637,11 +2957,130 @@ function renderWinterArc(refDate) {
   if (totalTimeEl) totalTimeEl.textContent = data.totalDurationStr;
   if (streakEl) streakEl.textContent = `${data.runningStreak} ${data.runningStreak === 1 ? 'day' : 'days'}`;
   if (paceEl) paceEl.textContent = data.avgPace;
+
+  // 4. Goals Grid (R5-B)
+  const goalsListEl = document.getElementById('waGoalsList');
+  if (goalsListEl && Array.isArray(data.goalsProgress)) {
+    goalsListEl.innerHTML = data.goalsProgress.map(g => `
+      <div class="winter-goal-item ${g.isCompleted ? 'completed' : ''}">
+        <div class="winter-goal-top">
+          <div class="winter-goal-info">
+            <span class="winter-goal-icon">${g.icon}</span>
+            <div>
+              <div class="winter-goal-name">${escapeHtml(g.name)}</div>
+              <div class="winter-goal-stat">
+                <strong class="winter-goal-curr">${escapeHtml(g.currentText)}</strong> / <span class="winter-goal-target">${escapeHtml(g.targetText)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="winter-goal-status">
+            ${g.isCompleted
+              ? '<span class="winter-goal-badge completed">Completed 🎉</span>'
+              : `<span class="winter-goal-pct">${g.pct}%</span>`
+            }
+          </div>
+        </div>
+        <div class="winter-goal-track">
+          <div class="winter-goal-bar ${g.isCompleted ? 'completed' : ''}" style="width: ${g.pct}%"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // 5. Highlights (R5-C)
+  const hlMostActiveEl = document.getElementById('waHlMostActiveDay');
+  const hlLongestRunEl = document.getElementById('waHlLongestRun');
+  const hlTotalDistEl = document.getElementById('waHlTotalDistance');
+  const hlTotalRunsEl = document.getElementById('waHlTotalRuns');
+
+  if (hlMostActiveEl) hlMostActiveEl.textContent = data.highlights.mostActiveDay;
+  if (hlLongestRunEl) hlLongestRunEl.textContent = data.highlights.longestRun;
+  if (hlTotalDistEl) hlTotalDistEl.textContent = data.highlights.totalDistance;
+  if (hlTotalRunsEl) hlTotalRunsEl.textContent = data.highlights.totalRuns;
+
+  // 6. Monthly Summaries (R5-C)
+  const monthlyGridEl = document.getElementById('waMonthlyGrid');
+  if (monthlyGridEl && Array.isArray(data.monthlySummaries)) {
+    monthlyGridEl.innerHTML = data.monthlySummaries.map(m => `
+      <div class="winter-month-card">
+        <div class="winter-month-header">
+          <div class="winter-month-title">${m.icon} ${escapeHtml(m.shortName)}</div>
+          <span class="winter-month-badge">${m.daysCount} days</span>
+        </div>
+        <div class="winter-month-metrics">
+          <div class="winter-month-stat"><span>🏃 Runs</span><strong>${m.runCount} ${m.runCount === 1 ? 'run' : 'runs'}</strong></div>
+          <div class="winter-month-stat"><span>📏 Distance</span><strong>${escapeHtml(m.distanceStr)}</strong></div>
+          <div class="winter-month-stat"><span>✅ Habits</span><strong>${m.habitCompletions} done</strong></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // 7. Activity Calendar (R5-C)
+  const calendarMonthsEl = document.getElementById('waCalendarMonths');
+  if (calendarMonthsEl && Array.isArray(data.calendarMonths)) {
+    calendarMonthsEl.innerHTML = data.calendarMonths.map(m => `
+      <div class="winter-cal-month-block">
+        <div class="winter-cal-month-head">
+          <span>${m.icon} ${escapeHtml(m.shortName)}</span>
+          <span class="winter-cal-month-sub">${m.activeDays} active / ${m.daysCount} days</span>
+        </div>
+        <div class="winter-cal-days-grid">
+          ${m.days.map(d => `
+            <button class="wac-cell ${d.isFuture ? 'future' : 'l' + d.level}" title="${escapeHtml(d.title)}" type="button">${d.dayNum}</button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // 8. Goal Progress Overview (R5-C)
+  const goalOverviewGridEl = document.getElementById('waGoalOverviewGrid');
+  if (goalOverviewGridEl && Array.isArray(data.goalsProgress)) {
+    goalOverviewGridEl.innerHTML = data.goalsProgress.map(g => {
+      const remainingVal = g.target - g.current;
+      let remainingText = '';
+      if (g.isCompleted) {
+        remainingText = 'Target Achieved 🎉';
+      } else if (remainingVal > 0) {
+        if (g.id === 'distance') {
+          remainingText = `${remainingVal.toFixed(1)} km to go`;
+        } else {
+          remainingText = `${Math.ceil(remainingVal)} ${escapeHtml(g.unit)} to go`;
+        }
+      } else {
+        remainingText = 'Complete';
+      }
+
+      return `
+        <div class="winter-gov-item ${g.isCompleted ? 'completed' : ''}">
+          <div class="winter-gov-top">
+            <div class="winter-gov-info">
+              <span class="winter-gov-icon">${g.icon}</span>
+              <div class="winter-gov-name">${escapeHtml(g.name)}</div>
+            </div>
+            <div class="winter-gov-pct">${g.isCompleted ? '100% ✓' : g.pct + '%'}</div>
+          </div>
+          <div class="winter-gov-track">
+            <div class="winter-gov-bar ${g.isCompleted ? 'completed' : ''}" style="width: ${g.pct}%"></div>
+          </div>
+          <div class="winter-gov-stat">
+            <span><strong>${escapeHtml(g.currentText)}</strong> / ${escapeHtml(g.targetText)}</span>
+            <span>${remainingText}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
 }
 
 if (typeof window !== 'undefined') {
   window.getWinterArcData = getWinterArcData;
   window.renderWinterArc = renderWinterArc;
+  window.getWinterArcGoals = getWinterArcGoals;
+  window.saveWinterArcGoals = saveWinterArcGoals;
+  window.openWinterGoalsModal = openWinterGoalsModal;
+  window.closeWinterGoalsModal = closeWinterGoalsModal;
 }
 
 let activeHeatmapDateKey = null;
@@ -4242,7 +4681,9 @@ document.getElementById('subBack').addEventListener('click', closeSubTracker);
 document.getElementById('habitDetailBack').addEventListener('click', closeHabitDetail);
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if (document.getElementById('routeModalOverlay')?.style.display !== 'none') {
+    if (document.getElementById('winterGoalsModal')?.style.display !== 'none') {
+      closeWinterGoalsModal();
+    } else if (document.getElementById('routeModalOverlay')?.style.display !== 'none') {
       closeRouteModal();
     } else if (isQuickAddOpen()) {
       closeQuickAdd();
@@ -4298,6 +4739,31 @@ document.getElementById('closeSubItemBtn').addEventListener('click', closeSubIte
 document.getElementById('saveSubItemBtn').addEventListener('click', saveSubItem);
 document.getElementById('subItemOverlay').addEventListener('click', e=>{if(e.target===document.getElementById('subItemOverlay')) closeSubItemModal();});
 document.getElementById('siName').addEventListener('keydown', e=>{if(e.key==='Enter') saveSubItem();});
+
+// Winter Arc Goals Listeners (R5-B)
+document.getElementById('waEditGoalsBtn')?.addEventListener('click', openWinterGoalsModal);
+document.getElementById('waCancelGoalsBtn')?.addEventListener('click', closeWinterGoalsModal);
+document.getElementById('winterGoalsModal')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('winterGoalsModal')) {
+    closeWinterGoalsModal();
+  }
+});
+document.getElementById('waSaveGoalsBtn')?.addEventListener('click', () => {
+  const inpRuns = document.getElementById('waInputRuns');
+  const inpDist = document.getElementById('waInputDistance');
+  const inpHabits = document.getElementById('waInputHabits');
+  const inpDays = document.getElementById('waInputRunningDays');
+
+  const newGoals = {
+    targetRuns: inpRuns ? inpRuns.value : '',
+    targetDistanceKm: inpDist ? inpDist.value : '',
+    targetHabits: inpHabits ? inpHabits.value : '',
+    targetRunningDays: inpDays ? inpDays.value : ''
+  };
+
+  saveWinterArcGoals(newGoals);
+  closeWinterGoalsModal();
+});
 
 // ===================== PWA SERVICE WORKER =====================
 if ('serviceWorker' in navigator) {

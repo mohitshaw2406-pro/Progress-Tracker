@@ -280,6 +280,101 @@ nav{position:sticky;top:0;z-index:50;background:#07070acc;backdrop-filter:blur(1
 .winter-metric-val{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--txt);line-height:1.3}
 .winter-metric-sub{font-size:10px;color:var(--hint);margin-top:4px}
 
+/* WINTER ARC GOALS (R5-B) */
+.winter-goals-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:1.25rem 1.4rem;margin-bottom:1.5rem}
+.winter-goals-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:1.1rem;flex-wrap:wrap}
+.winter-goals-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:6px}
+.winter-goals-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.winter-edit-goals-btn{background:rgba(56, 189, 248, 0.12);color:#38bdf8;border:1px solid rgba(56, 189, 248, 0.28);border-radius:10px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:4px}
+.winter-edit-goals-btn:hover{background:rgba(56, 189, 248, 0.22);border-color:#38bdf8;transform:translateY(-1px)}
+.winter-goals-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.winter-goal-item{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;transition:all .2s;display:flex;flex-direction:column;justify-content:space-between}
+.winter-goal-item:hover{border-color:rgba(56, 189, 248, 0.4)}
+.winter-goal-item.completed{border-color:rgba(52, 211, 153, 0.45);background:linear-gradient(135deg, rgba(52, 211, 153, 0.08) 0%, var(--s2) 100%)}
+.winter-goal-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.winter-goal-info{display:flex;align-items:center;gap:10px}
+.winter-goal-icon{font-size:22px;line-height:1}
+.winter-goal-name{font-size:13px;font-weight:700;color:var(--txt)}
+.winter-goal-stat{font-size:12px;color:var(--muted);margin-top:2px}
+.winter-goal-stat strong{font-family:'Syne',sans-serif;color:var(--txt);font-weight:700}
+.winter-goal-pct{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#38bdf8}
+.winter-goal-badge.completed{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:#34d399;background:rgba(52, 211, 153, 0.15);border:1px solid rgba(52, 211, 153, 0.35);border-radius:999px;padding:3px 8px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.winter-goal-track{background:var(--bg);height:7px;border-radius:999px;overflow:hidden}
+.winter-goal-bar{height:100%;background:linear-gradient(90deg, #7c5af5, #38bdf8);border-radius:999px;transition:width .4s ease}
+.winter-goal-bar.completed{background:linear-gradient(90deg, #10b981, #34d399)}
+
+/* WINTER ARC ACTIVITY & VISUALIZATION (R5-C) */
+.winter-activity-section{margin-top:1.5rem}
+.winter-section-header{margin-bottom:1.1rem}
+.winter-section-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:6px}
+.winter-section-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.winter-subcard-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:6px}
+
+/* Highlights */
+.winter-highlights-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:1.25rem 1.4rem;margin-bottom:1.25rem}
+.winter-highlights-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.winter-hl-item{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;justify-content:center;transition:border-color .2s}
+.winter-hl-item:hover{border-color:rgba(56, 189, 248, 0.4)}
+.winter-hl-lbl{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:4px}
+.winter-hl-val{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--txt);line-height:1.3;word-break:break-word}
+.winter-hl-sub{font-size:10px;color:var(--hint);margin-top:4px}
+
+/* Monthly Summaries */
+.winter-monthly-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:1.25rem 1.4rem;margin-bottom:1.25rem}
+.winter-monthly-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.winter-month-card{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;transition:all .2s;display:flex;flex-direction:column;gap:10px}
+.winter-month-card:hover{border-color:rgba(56, 189, 248, 0.4)}
+.winter-month-header{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.winter-month-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:6px}
+.winter-month-badge{font-size:10px;font-weight:700;color:#38bdf8;background:rgba(56, 189, 248, 0.12);border:1px solid rgba(56, 189, 248, 0.25);border-radius:999px;padding:2px 8px}
+.winter-month-metrics{display:flex;flex-direction:column;gap:6px}
+.winter-month-stat{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)}
+.winter-month-stat strong{font-family:'Syne',sans-serif;font-weight:700;color:var(--txt)}
+
+/* Calendar */
+.winter-calendar-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:1.25rem 1.4rem;margin-bottom:1.25rem}
+.winter-cal-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.winter-cal-hint{font-size:11px;color:var(--muted);margin-top:2px}
+.winter-cal-legend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.wac-leg-item{display:flex;align-items:center;gap:5px}
+.wac-chip{width:11px;height:11px;border-radius:3px;display:inline-block}
+.wac-chip.future{background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.18)}
+.wac-chip.l0{background:#181822;border:1px solid rgba(255,255,255,0.08)}
+.wac-chip.l1{background:#1e3a5f;border:1px solid #2563eb}
+.wac-chip.l2{background:#0369a1;border:1px solid #38bdf8}
+.wac-chip.l3{background:#0284c7;border:1px solid #7dd3fc}
+.wac-chip.l4{background:#38bdf8;border:1px solid #bae6fd}
+.winter-calendar-months{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.winter-cal-month-block{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:12px}
+.winter-cal-month-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--txt)}
+.winter-cal-month-sub{font-size:10px;color:var(--muted);font-weight:500}
+.winter-cal-days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wac-cell{height:28px;border-radius:6px;font-family:'Syne',sans-serif;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;transition:all .15s ease;cursor:default;user-select:none;border:none;padding:0}
+.wac-cell.future{background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.08);color:var(--hint);opacity:0.35;cursor:not-allowed}
+.wac-cell.l0{background:#181822;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+.wac-cell.l1{background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd;cursor:pointer}
+.wac-cell.l2{background:#0369a1;border:1px solid #38bdf8;color:#e0f2fe;font-weight:700;cursor:pointer}
+.wac-cell.l3{background:#0284c7;border:1px solid #7dd3fc;color:#ffffff;font-weight:800;box-shadow:0 0 8px rgba(56,189,248,0.25);cursor:pointer}
+.wac-cell.l4{background:linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);border:1px solid #bae6fd;color:#0f172a;font-weight:800;box-shadow:0 0 10px rgba(56,189,248,0.45);cursor:pointer}
+.wac-cell.l1:hover,.wac-cell.l2:hover,.wac-cell.l3:hover,.wac-cell.l4:hover{transform:scale(1.12);z-index:2}
+
+/* Goal Progress Overview */
+.winter-goal-overview-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:1.25rem 1.4rem;margin-bottom:1.5rem}
+.winter-goal-overview-sub{font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:14px}
+.winter-goal-overview-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.winter-gov-item{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:border-color .2s}
+.winter-gov-item.completed{border-color:rgba(52, 211, 153, 0.45);background:linear-gradient(135deg, rgba(52, 211, 153, 0.08) 0%, var(--s2) 100%)}
+.winter-gov-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.winter-gov-info{display:flex;align-items:center;gap:8px}
+.winter-gov-icon{font-size:20px;line-height:1}
+.winter-gov-name{font-size:13px;font-weight:700;color:var(--txt)}
+.winter-gov-pct{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#38bdf8}
+.winter-gov-stat{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)}
+.winter-gov-stat strong{font-family:'Syne',sans-serif;color:var(--txt);font-weight:700}
+.winter-gov-track{background:var(--bg);height:6px;border-radius:999px;overflow:hidden}
+.winter-gov-bar{height:100%;background:linear-gradient(90deg, #7c5af5, #38bdf8);border-radius:999px;transition:width .4s ease}
+.winter-gov-bar.completed{background:linear-gradient(90deg, #10b981, #34d399)}
+
 /* HEATMAP */
 .heatmap-wrap{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:1.25rem;overflow-x:auto}
 .heatmap-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
@@ -780,6 +875,16 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
   .running-pr-grid{grid-template-columns:repeat(2,1fr)}
   .winter-hero{padding:1.1rem 1rem}
   .winter-grid{grid-template-columns:repeat(2,1fr)}
+  .winter-goals-card{padding:1.1rem 1rem}
+  .winter-goals-grid{grid-template-columns:1fr}
+  .winter-highlights-card{padding:1.1rem 1rem}
+  .winter-highlights-grid{grid-template-columns:repeat(2,1fr)}
+  .winter-monthly-card{padding:1.1rem 1rem}
+  .winter-monthly-grid{grid-template-columns:1fr}
+  .winter-calendar-card{padding:1.1rem 1rem}
+  .winter-calendar-months{grid-template-columns:1fr}
+  .winter-goal-overview-card{padding:1.1rem 1rem}
+  .winter-goal-overview-grid{grid-template-columns:1fr}
   .sum-grid{grid-template-columns:1fr 1fr}
   .nav-inner{padding:0 .8rem}
   .tabs{gap:1px}
@@ -805,6 +910,7 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
   .running-stats-item-wide{grid-column:span 1}
   .running-pr-grid{grid-template-columns:1fr}
   .winter-grid{grid-template-columns:1fr}
+  .winter-highlights-grid{grid-template-columns:1fr}
   .hd-grid{grid-template-columns:1fr}
 }
 
