@@ -105,6 +105,7 @@ function resetState() {
   renderPersonalRecords();
   renderHabitInsights();
   renderRunningStats();
+  if (typeof renderWinterArc === 'function') renderWinterArc();
   if (typeof renderRunHistory === 'function') renderRunHistory();
 }
 
@@ -143,6 +144,7 @@ async function loadFromFirebase() {
       isRunsLoading = false;
       if (typeof renderRunHistory === 'function') renderRunHistory();
       if (typeof renderRunningStats === 'function') renderRunningStats();
+      if (typeof renderWinterArc === 'function') renderWinterArc();
     }
     updateSyncLabel('locally saved');
     return;
@@ -170,6 +172,7 @@ async function loadFromFirebase() {
     isRunsLoading = false;
     if (typeof renderRunHistory === 'function') renderRunHistory();
     if (typeof renderRunningStats === 'function') renderRunningStats();
+    if (typeof renderWinterArc === 'function') renderWinterArc();
   }
 }
 
@@ -228,6 +231,7 @@ function subscribeToChanges() {
       renderToday();
       if (typeof renderRunHistory === 'function') renderRunHistory();
       if (typeof renderRunningStats === 'function') renderRunningStats();
+      if (typeof renderWinterArc === 'function') renderWinterArc();
       updateSyncLabel('abhi');
     }
   });
@@ -458,6 +462,7 @@ function renderToday() {
   renderTodayCommandCenter();
   renderPersonalRecords();
   renderHabitInsights();
+  if (typeof renderWinterArc === 'function') renderWinterArc();
 
   const list = document.getElementById('habitsList');
   list.innerHTML = '';
@@ -2480,6 +2485,165 @@ if (typeof window !== 'undefined') {
   window.renderRunningPersonalRecords = renderRunningPersonalRecords;
 }
 
+// ===================== WINTER ARC (R5-A) =====================
+const WINTER_ARC_START = '2026-10-01';
+const WINTER_ARC_END = '2026-12-31';
+const WINTER_ARC_TOTAL_DAYS = 92;
+
+function getWinterArcData(refDate) {
+  const now = refDate ? new Date(refDate) : today();
+  now.setHours(0, 0, 0, 0);
+
+  const start = new Date(2026, 9, 1); // 1 Oct 2026
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(2026, 11, 31); // 31 Dec 2026
+  end.setHours(23, 59, 59, 999);
+
+  let daysElapsed = 0;
+  let daysRemaining = WINTER_ARC_TOTAL_DAYS;
+  let periodStatus = 'upcoming'; // 'upcoming' | 'active' | 'completed'
+
+  if (now < start) {
+    daysElapsed = 0;
+    daysRemaining = WINTER_ARC_TOTAL_DAYS;
+    periodStatus = 'upcoming';
+  } else if (now > end) {
+    daysElapsed = WINTER_ARC_TOTAL_DAYS;
+    daysRemaining = 0;
+    periodStatus = 'completed';
+  } else {
+    // Within Winter Arc (Day 1 to Day 92)
+    const diffMs = now.getTime() - start.getTime();
+    const dayNum = Math.floor(diffMs / 86400000) + 1;
+    daysElapsed = Math.min(Math.max(dayNum, 1), WINTER_ARC_TOTAL_DAYS);
+    daysRemaining = WINTER_ARC_TOTAL_DAYS - daysElapsed;
+    periodStatus = 'active';
+  }
+
+  // Habits completed strictly in Winter Arc period
+  let totalHabitsCompleted = 0;
+  const historyKeys = Object.keys(S.history || {});
+  historyKeys.forEach(k => {
+    if (k >= WINTER_ARC_START && k <= WINTER_ARC_END) {
+      const done = getDone(k);
+      totalHabitsCompleted += [...new Set(done)].length;
+    }
+  });
+
+  // Runs completed strictly in Winter Arc period
+  let totalRuns = 0;
+  let totalDistanceMeters = 0;
+  let totalDurationSec = 0;
+
+  const validRuns = Array.isArray(S.runs) ? S.runs.filter(r => r && typeof r === 'object') : [];
+  validRuns.forEach(r => {
+    const ts = getRunCompletedTs(r);
+    if (!ts) return;
+    const k = dkey(new Date(ts));
+    if (k >= WINTER_ARC_START && k <= WINTER_ARC_END) {
+      totalRuns++;
+      const dMeters = typeof r.distanceMeters === 'number' && !isNaN(r.distanceMeters) && r.distanceMeters > 0 ? r.distanceMeters : 0;
+      const dSec = typeof r.durationSec === 'number' && !isNaN(r.durationSec) && r.durationSec > 0 ? r.durationSec : 0;
+      totalDistanceMeters += dMeters;
+      totalDurationSec += dSec;
+    }
+  });
+
+  const runningStreak = getRunningStreak(validRuns);
+  const totalDurationMs = totalDurationSec * 1000;
+  const avgPace = calculateAveragePace(totalDurationMs, totalDistanceMeters);
+
+  // Overall activity summary
+  let summaryText = '';
+  let statusBadgeText = '';
+
+  if (periodStatus === 'upcoming') {
+    const daysUntil = Math.ceil((start.getTime() - now.getTime()) / 86400000);
+    statusBadgeText = `Starts in ${daysUntil} ${daysUntil === 1 ? 'day' : 'days'}`;
+    summaryText = `Winter Arc begins on 1 Oct 2026. Prepare your routine and lock in for 92 days of discipline.`;
+  } else if (periodStatus === 'active') {
+    statusBadgeText = `Day ${daysElapsed} of ${WINTER_ARC_TOTAL_DAYS}`;
+    summaryText = `${totalHabitsCompleted} habit ${totalHabitsCompleted === 1 ? 'completion' : 'completions'} and ${totalRuns} ${totalRuns === 1 ? 'run' : 'runs'} (${formatRunDistance(totalDistanceMeters)}) logged so far. Keep pushing!`;
+  } else {
+    statusBadgeText = `Completed`;
+    summaryText = `Winter Arc ended on 31 Dec 2026. Final achievements: ${totalHabitsCompleted} habit completions, ${totalRuns} runs, and ${formatRunDistance(totalDistanceMeters)} total distance.`;
+  }
+
+  return {
+    startDate: WINTER_ARC_START,
+    endDate: WINTER_ARC_END,
+    totalDays: WINTER_ARC_TOTAL_DAYS,
+    daysElapsed,
+    daysRemaining,
+    periodStatus,
+    statusBadgeText,
+    summaryText,
+    totalHabitsCompleted,
+    totalRuns,
+    totalDistanceMeters,
+    totalDistanceStr: formatRunDistance(totalDistanceMeters),
+    totalDurationSec,
+    totalDurationStr: formatRunTime(totalDurationSec),
+    avgPace,
+    runningStreak
+  };
+}
+
+function renderWinterArc(refDate) {
+  const page = document.getElementById('pg-winter');
+  if (!page) return;
+
+  const data = getWinterArcData(refDate);
+
+  // 1. Timeline stats
+  const daysElapsedEl = document.getElementById('waDaysElapsed');
+  const daysRemainingEl = document.getElementById('waDaysRemaining');
+  const progressBarEl = document.getElementById('waProgressBar');
+  const timelinePctEl = document.getElementById('waTimelinePct');
+  const timelineTitleEl = document.getElementById('waTimelineTitle');
+
+  const pct = Math.round((data.daysElapsed / data.totalDays) * 100);
+
+  if (daysElapsedEl) daysElapsedEl.textContent = `${data.daysElapsed} / ${data.totalDays} days`;
+  if (daysRemainingEl) daysRemainingEl.textContent = `${data.daysRemaining} days`;
+  if (progressBarEl) progressBarEl.style.width = `${pct}%`;
+  if (timelinePctEl) timelinePctEl.textContent = `${pct}%`;
+  if (timelineTitleEl) {
+    timelineTitleEl.textContent = data.periodStatus === 'upcoming'
+      ? 'Timeline: Starting Soon'
+      : data.periodStatus === 'active'
+        ? `Timeline: Day ${data.daysElapsed} of ${data.totalDays}`
+        : 'Timeline: Arc Completed';
+  }
+
+  // 2. Summary
+  const statusBadgeEl = document.getElementById('waStatusBadge');
+  const summaryTextEl = document.getElementById('waSummaryText');
+  if (statusBadgeEl) statusBadgeEl.textContent = data.statusBadgeText;
+  if (summaryTextEl) summaryTextEl.textContent = data.summaryText;
+
+  // 3. Metrics Grid
+  const totalHabitsEl = document.getElementById('waTotalHabits');
+  const totalRunsEl = document.getElementById('waTotalRuns');
+  const totalDistEl = document.getElementById('waTotalDistance');
+  const totalTimeEl = document.getElementById('waTotalTime');
+  const streakEl = document.getElementById('waRunningStreak');
+  const paceEl = document.getElementById('waAvgPace');
+
+  if (totalHabitsEl) totalHabitsEl.textContent = String(data.totalHabitsCompleted);
+  if (totalRunsEl) totalRunsEl.textContent = `${data.totalRuns} ${data.totalRuns === 1 ? 'run' : 'runs'}`;
+  if (totalDistEl) totalDistEl.textContent = data.totalDistanceStr;
+  if (totalTimeEl) totalTimeEl.textContent = data.totalDurationStr;
+  if (streakEl) streakEl.textContent = `${data.runningStreak} ${data.runningStreak === 1 ? 'day' : 'days'}`;
+  if (paceEl) paceEl.textContent = data.avgPace;
+}
+
+if (typeof window !== 'undefined') {
+  window.getWinterArcData = getWinterArcData;
+  window.renderWinterArc = renderWinterArc;
+}
+
 let activeHeatmapDateKey = null;
 
 function getDayDetailsData(dateKey) {
@@ -3783,6 +3947,7 @@ function doneRun() {
       S.runs.unshift(newEntry);
       renderRunHistory();
       renderRunningStats();
+      renderWinterArc();
       saveToFirebase();
       toast('Run saved to history! 🏃');
     } catch (err) {
@@ -3807,6 +3972,7 @@ function deleteRun(runId) {
     closeRouteModal();
     renderRunHistory();
     renderRunningStats();
+    renderWinterArc();
     saveToFirebase();
     toast('Run deleted');
   }
@@ -3934,6 +4100,8 @@ if (typeof window !== 'undefined') {
   window.renderRunningStats = renderRunningStats;
   window.getRunningPersonalRecordsData = getRunningPersonalRecordsData;
   window.renderRunningPersonalRecords = renderRunningPersonalRecords;
+  window.getWinterArcData = getWinterArcData;
+  window.renderWinterArc = renderWinterArc;
 }
 
 // ===================== NAV =====================
@@ -3952,6 +4120,7 @@ function showPage(pg) {
     renderRunningView();
     renderRunHistory();
   }
+  if (pg==='winter') renderWinterArc();
 }
 
 function initGreeting() {

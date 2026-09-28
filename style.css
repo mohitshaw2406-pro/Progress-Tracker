@@ -253,6 +253,33 @@ nav{position:sticky;top:0;z-index:50;background:#07070acc;backdrop-filter:blur(1
 .running-pr-item-val{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--txt);line-height:1.3;word-break:break-word}
 .running-pr-item-sub{font-size:10px;color:var(--hint);margin-top:4px;line-height:1.3}
 
+/* WINTER ARC (R5-A) */
+.winter-hero{background:linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(124, 90, 245, 0.12) 100%), var(--s1);border:1px solid rgba(56, 189, 248, 0.25);border-radius:20px;padding:1.4rem;margin-bottom:1.25rem;position:relative;overflow:hidden}
+.winter-hero-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.winter-hero-badge{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:6px}
+.winter-hero-dates{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#38bdf8;background:rgba(56, 189, 248, 0.14);border:1px solid rgba(56, 189, 248, 0.28);border-radius:999px;padding:4px 12px}
+.winter-hero-tagline{font-size:12px;color:var(--muted);margin-bottom:1.2rem;line-height:1.4}
+.winter-progress-card{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:12px 14px}
+.winter-progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.winter-progress-title{font-size:12px;font-weight:700;color:var(--txt)}
+.winter-progress-pct{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#38bdf8}
+.winter-progress-track{background:var(--bg);height:8px;border-radius:999px;overflow:hidden;margin-bottom:10px}
+.winter-progress-bar{height:100%;background:linear-gradient(90deg,#7c5af5,#38bdf8);border-radius:999px;transition:width .4s ease}
+.winter-timeline-stats{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);flex-wrap:wrap;gap:6px}
+.winter-timeline-item strong{color:var(--txt);margin-left:4px}
+.winter-summary-card{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:1.1rem 1.25rem;margin-bottom:1.25rem}
+.winter-summary-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.winter-summary-icon{font-size:22px}
+.winter-summary-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--txt)}
+.winter-summary-sub{font-size:11px;color:#38bdf8;font-weight:600}
+.winter-summary-text{font-size:13px;color:var(--txt);line-height:1.45}
+.winter-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.5rem}
+.winter-metric-item{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;justify-content:center;transition:border-color .2s}
+.winter-metric-item:hover{border-color:#38bdf8}
+.winter-metric-lbl{font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px}
+.winter-metric-val{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--txt);line-height:1.3}
+.winter-metric-sub{font-size:10px;color:var(--hint);margin-top:4px}
+
 /* HEATMAP */
 .heatmap-wrap{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:18px;margin-bottom:1.25rem;overflow-x:auto}
 .heatmap-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
@@ -751,6 +778,8 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
   .running-stats-item-wide{grid-column:span 2}
   .running-pr-card{padding:1.1rem 1rem}
   .running-pr-grid{grid-template-columns:repeat(2,1fr)}
+  .winter-hero{padding:1.1rem 1rem}
+  .winter-grid{grid-template-columns:repeat(2,1fr)}
   .sum-grid{grid-template-columns:1fr 1fr}
   .nav-inner{padding:0 .8rem}
   .tabs{gap:1px}
@@ -775,6 +804,7 @@ button.hm-cell{border:none;padding:0;margin:0;font:inherit;color:inherit;appeara
   .running-stats-grid{grid-template-columns:1fr}
   .running-stats-item-wide{grid-column:span 1}
   .running-pr-grid{grid-template-columns:1fr}
+  .winter-grid{grid-template-columns:1fr}
   .hd-grid{grid-template-columns:1fr}
 }
 

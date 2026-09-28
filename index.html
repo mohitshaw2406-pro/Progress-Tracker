@@ -67,6 +67,7 @@
       <button class="tab" data-pg="stats">Stats</button>
       <button class="tab" data-pg="manage">Habits</button>
       <button class="tab" data-pg="running">🏃 Run</button>
+      <button class="tab" data-pg="winter">❄️ Winter</button>
     </div>
     <button class="user-btn" id="userBtn" title="Account">👤</button>
   </div>
@@ -568,6 +569,83 @@
           <div class="run-history-empty-icon">👟</div>
           <p class="run-history-empty-text">No runs yet. Complete your first run to see it here.</p>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WINTER ARC (R5-A) -->
+  <div class="pg" id="pg-winter">
+    <div class="winter-hero">
+      <div class="winter-hero-header">
+        <div class="winter-hero-badge">❄️ Winter Arc</div>
+        <div class="winter-hero-dates">1 Oct 2026 — 31 Dec 2026</div>
+      </div>
+      <div class="winter-hero-tagline">Lock in for 92 days of relentless consistency, physical conditioning, and unbroken focus.</div>
+      
+      <div class="winter-progress-card">
+        <div class="winter-progress-header">
+          <div class="winter-progress-title" id="waTimelineTitle">Timeline Progress</div>
+          <div class="winter-progress-pct" id="waTimelinePct">0%</div>
+        </div>
+        <div class="winter-progress-track">
+          <div class="winter-progress-bar" id="waProgressBar" style="width: 0%"></div>
+        </div>
+        <div class="winter-timeline-stats">
+          <div class="winter-timeline-item">
+            <span class="winter-tl-label">Days Elapsed:</span>
+            <strong id="waDaysElapsed">0 / 92 days</strong>
+          </div>
+          <div class="winter-timeline-item">
+            <span class="winter-tl-label">Days Remaining:</span>
+            <strong id="waDaysRemaining">92 days</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUMMARY CARD -->
+    <div class="winter-summary-card">
+      <div class="winter-summary-header">
+        <span class="winter-summary-icon">📊</span>
+        <div>
+          <div class="winter-summary-title">Overall Activity Summary</div>
+          <div class="winter-summary-sub" id="waStatusBadge">Upcoming Period</div>
+        </div>
+      </div>
+      <div class="winter-summary-text" id="waSummaryText">The Winter Arc begins on 1 October 2026. Prepare your routine and lock in.</div>
+    </div>
+
+    <!-- METRICS GRID -->
+    <div class="winter-grid" id="waMetricsGrid">
+      <div class="winter-metric-item">
+        <div class="winter-metric-lbl">✅ Habits Completed</div>
+        <div class="winter-metric-val" id="waTotalHabits">0</div>
+        <div class="winter-metric-sub">During Winter Arc</div>
+      </div>
+      <div class="winter-metric-item">
+        <div class="winter-metric-lbl">🏃 Total Runs</div>
+        <div class="winter-metric-val" id="waTotalRuns">0</div>
+        <div class="winter-metric-sub">During Winter Arc</div>
+      </div>
+      <div class="winter-metric-item">
+        <div class="winter-metric-lbl">📏 Running Distance</div>
+        <div class="winter-metric-val" id="waTotalDistance">0 m</div>
+        <div class="winter-metric-sub">Cumulative distance</div>
+      </div>
+      <div class="winter-metric-item">
+        <div class="winter-metric-lbl">⏱️ Running Time</div>
+        <div class="winter-metric-val" id="waTotalTime">00:00:00</div>
+        <div class="winter-metric-sub">Total time on road</div>
+      </div>
+      <div class="winter-metric-item">
+        <div class="winter-metric-lbl">🔥 Current Streak</div>
+        <div class="winter-metric-val" id="waRunningStreak">0 days</div>
+        <div class="winter-metric-sub">Active running streak</div>
+      </div>
+      <div class="winter-metric-item">
+        <div class="winter-metric-lbl">⚡ Average Pace</div>
+        <div class="winter-metric-val" id="waAvgPace">-- /km</div>
+        <div class="winter-metric-sub">Winter Arc pace</div>
       </div>
     </div>
   </div>
