@@ -1296,6 +1296,7 @@ function renderStats() {
   renderPersonalRecords();
   renderHabitInsights();
   renderRunningStats();
+  renderRunningPersonalRecords();
   renderHeatmap();
   renderPieChart();
   renderTopHabits();
@@ -2026,6 +2027,7 @@ function renderRunningStats() {
   if (!stats.hasRuns) {
     if (emptyEl) emptyEl.style.display = 'block';
     if (gridEl) gridEl.style.display = 'none';
+    renderRunningPersonalRecords();
     return;
   }
 
@@ -2165,6 +2167,308 @@ function renderRunningStats() {
       if (lastRunSubEl) lastRunSubEl.textContent = '';
     }
   }
+
+  renderRunningPersonalRecords();
+}
+
+// ===================== RUNNING PERSONAL RECORDS (R4-C) =====================
+function getRunCompletedTs(r) {
+  if (!r || typeof r !== 'object') return null;
+  if (typeof r.completedAt === 'number' && !isNaN(r.completedAt) && r.completedAt > 0) {
+    return r.completedAt;
+  }
+  if (r.completedAt) {
+    const t = new Date(r.completedAt).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  return null;
+}
+
+function formatRecordDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getRunningPersonalRecordsData(runs) {
+  const validRuns = Array.isArray(runs) ? runs.filter(r => r && typeof r === 'object') : [];
+
+  if (validRuns.length === 0) {
+    return {
+      hasRecords: false,
+      longestRun: null,
+      fastestPace: null,
+      longestDuration: null,
+      mostActiveDay: null,
+      highestWeek: null,
+      mostActiveMonth: null
+    };
+  }
+
+  // 1. Longest Run (single run max distance) - tie breaker: earliest completedAt
+  let longestRun = null;
+  let maxDistanceMeters = -1;
+  let longestRunTs = Infinity;
+
+  // 2. Fastest Pace (single run min secPerKm) - tie breaker: earliest completedAt
+  let fastestPaceRun = null;
+  let minSecPerKm = Infinity;
+  let fastestPaceTs = Infinity;
+
+  // 3. Longest Duration (single run max duration) - tie breaker: earliest completedAt
+  let longestDurRun = null;
+  let maxDurationSec = -1;
+  let longestDurTs = Infinity;
+
+  // Day, Week, Month aggregation maps
+  const daysMap = new Map();
+  const weeksMap = new Map();
+  const monthsMap = new Map();
+
+  validRuns.forEach(r => {
+    const dMeters = typeof r.distanceMeters === 'number' && !isNaN(r.distanceMeters) && r.distanceMeters > 0 ? r.distanceMeters : 0;
+    const dSec = typeof r.durationSec === 'number' && !isNaN(r.durationSec) && r.durationSec > 0 ? r.durationSec : 0;
+    const ts = getRunCompletedTs(r);
+
+    // 1. Longest Run
+    if (dMeters > 0) {
+      const cmpTs = ts || Infinity;
+      if (dMeters > maxDistanceMeters) {
+        maxDistanceMeters = dMeters;
+        longestRun = r;
+        longestRunTs = cmpTs;
+      } else if (dMeters === maxDistanceMeters && cmpTs < longestRunTs) {
+        longestRun = r;
+        longestRunTs = cmpTs;
+      }
+    }
+
+    // 2. Fastest Pace (R4-B rules)
+    const secPerKm = getRunPaceSecPerKm(r);
+    if (secPerKm !== null) {
+      const cmpTs = ts || Infinity;
+      if (secPerKm < minSecPerKm) {
+        minSecPerKm = secPerKm;
+        fastestPaceRun = r;
+        fastestPaceTs = cmpTs;
+      } else if (secPerKm === minSecPerKm && cmpTs < fastestPaceTs) {
+        fastestPaceRun = r;
+        fastestPaceTs = cmpTs;
+      }
+    }
+
+    // 3. Longest Duration
+    if (dSec > 0) {
+      const cmpTs = ts || Infinity;
+      if (dSec > maxDurationSec) {
+        maxDurationSec = dSec;
+        longestDurRun = r;
+        longestDurTs = cmpTs;
+      } else if (dSec === maxDurationSec && cmpTs < longestDurTs) {
+        longestDurRun = r;
+        longestDurTs = cmpTs;
+      }
+    }
+
+    // Grouping for Day, Week, Month (only runs with positive distance and valid timestamp)
+    if (dMeters > 0 && ts) {
+      const dt = new Date(ts);
+
+      // Day key (YYYY-MM-DD)
+      const dayKey = dkey(dt);
+      if (!daysMap.has(dayKey)) {
+        daysMap.set(dayKey, { dayKey, totalDist: 0, totalDur: 0, runCount: 0, dateObj: dt });
+      }
+      const dEntry = daysMap.get(dayKey);
+      dEntry.totalDist += dMeters;
+      dEntry.totalDur += dSec;
+      dEntry.runCount++;
+
+      // Week key (Sunday - Saturday)
+      const sunday = new Date(dt);
+      sunday.setDate(sunday.getDate() - sunday.getDay());
+      sunday.setHours(0, 0, 0, 0);
+      const saturday = new Date(sunday);
+      saturday.setDate(saturday.getDate() + 6);
+      saturday.setHours(23, 59, 59, 999);
+      const weekKey = dkey(sunday);
+      if (!weeksMap.has(weekKey)) {
+        weeksMap.set(weekKey, { weekKey, totalDist: 0, totalDur: 0, runCount: 0, sunday, saturday });
+      }
+      const wEntry = weeksMap.get(weekKey);
+      wEntry.totalDist += dMeters;
+      wEntry.totalDur += dSec;
+      wEntry.runCount++;
+
+      // Month key (YYYY-MM)
+      const yr = dt.getFullYear();
+      const mo = dt.getMonth();
+      const monthKey = `${yr}-${String(mo + 1).padStart(2, '0')}`;
+      if (!monthsMap.has(monthKey)) {
+        monthsMap.set(monthKey, { monthKey, totalDist: 0, totalDur: 0, runCount: 0, year: yr, month: mo });
+      }
+      const mEntry = monthsMap.get(monthKey);
+      mEntry.totalDist += dMeters;
+      mEntry.totalDur += dSec;
+      mEntry.runCount++;
+    }
+  });
+
+  // 4. Most Active Day - tie breaker: earliest calendar day
+  let bestDay = null;
+  let maxDayDist = 0;
+  for (const day of daysMap.values()) {
+    if (day.totalDist <= 0) continue;
+    if (day.totalDist > maxDayDist) {
+      maxDayDist = day.totalDist;
+      bestDay = day;
+    } else if (day.totalDist === maxDayDist && day.dayKey < bestDay.dayKey) {
+      bestDay = day;
+    }
+  }
+
+  // 5. Highest Distance Week - tie breaker: earliest week key
+  let bestWeek = null;
+  let maxWeekDist = 0;
+  for (const wk of weeksMap.values()) {
+    if (wk.totalDist <= 0) continue;
+    if (wk.totalDist > maxWeekDist) {
+      maxWeekDist = wk.totalDist;
+      bestWeek = wk;
+    } else if (wk.totalDist === maxWeekDist && wk.weekKey < bestWeek.weekKey) {
+      bestWeek = wk;
+    }
+  }
+
+  // 6. Most Active Month - tie breaker: earliest month key
+  let bestMonth = null;
+  let maxMonthDist = 0;
+  for (const mo of monthsMap.values()) {
+    if (mo.totalDist <= 0) continue;
+    if (mo.totalDist > maxMonthDist) {
+      maxMonthDist = mo.totalDist;
+      bestMonth = mo;
+    } else if (mo.totalDist === maxMonthDist && mo.monthKey < bestMonth.monthKey) {
+      bestMonth = mo;
+    }
+  }
+
+  const hasRecords = Boolean(longestRun || fastestPaceRun || longestDurRun || bestDay || bestWeek || bestMonth);
+
+  return {
+    hasRecords,
+    longestRun: longestRun ? {
+      run: longestRun,
+      distanceMeters: maxDistanceMeters,
+      durationSec: longestRun.durationSec,
+      completedTs: longestRunTs,
+      value: formatRunDistance(maxDistanceMeters),
+      sub: `${formatRecordDate(longestRunTs) ? formatRecordDate(longestRunTs) + ' · ' : ''}${formatRunTime(longestRun.durationSec)} · ${longestRun.averagePace || calculateAveragePace((longestRun.durationSec || 0) * 1000, maxDistanceMeters)}`
+    } : null,
+    fastestPace: fastestPaceRun ? {
+      run: fastestPaceRun,
+      secPerKm: minSecPerKm,
+      completedTs: fastestPaceTs,
+      value: `${Math.floor(minSecPerKm / 60)}:${String(Math.floor(minSecPerKm % 60)).padStart(2, '0')} /km`,
+      sub: `${formatRunDistance(fastestPaceRun.distanceMeters)} · ${formatRunTime(fastestPaceRun.durationSec)}${formatRecordDate(fastestPaceTs) ? ' · ' + formatRecordDate(fastestPaceTs) : ''}`
+    } : null,
+    longestDuration: longestDurRun ? {
+      run: longestDurRun,
+      durationSec: maxDurationSec,
+      completedTs: longestDurTs,
+      value: formatRunTime(maxDurationSec),
+      sub: `${formatRunDistance(longestDurRun.distanceMeters)} · ${longestDurRun.averagePace || calculateAveragePace((maxDurationSec || 0) * 1000, longestDurRun.distanceMeters || 0)}${formatRecordDate(longestDurTs) ? ' · ' + formatRecordDate(longestDurTs) : ''}`
+    } : null,
+    mostActiveDay: bestDay ? {
+      dayKey: bestDay.dayKey,
+      totalDist: bestDay.totalDist,
+      runCount: bestDay.runCount,
+      value: formatRunDistance(bestDay.totalDist),
+      sub: `${formatRecordDate(bestDay.dateObj)} · ${bestDay.runCount} ${bestDay.runCount === 1 ? 'run' : 'runs'} · ${formatRunTime(bestDay.totalDur)}`
+    } : null,
+    highestWeek: bestWeek ? {
+      weekKey: bestWeek.weekKey,
+      totalDist: bestWeek.totalDist,
+      runCount: bestWeek.runCount,
+      value: formatRunDistance(bestWeek.totalDist),
+      sub: `${bestWeek.sunday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${bestWeek.saturday.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · ${bestWeek.runCount} ${bestWeek.runCount === 1 ? 'run' : 'runs'}`
+    } : null,
+    mostActiveMonth: bestMonth ? {
+      monthKey: bestMonth.monthKey,
+      totalDist: bestMonth.totalDist,
+      runCount: bestMonth.runCount,
+      value: formatRunDistance(bestMonth.totalDist),
+      sub: `${(typeof MONTHS !== 'undefined' && MONTHS[bestMonth.month]) ? MONTHS[bestMonth.month] : new Date(bestMonth.year, bestMonth.month, 1).toLocaleDateString(undefined, { month: 'long' })} ${bestMonth.year} · ${bestMonth.runCount} ${bestMonth.runCount === 1 ? 'run' : 'runs'}`
+    } : null
+  };
+}
+
+function renderRunningPersonalRecords() {
+  const card = document.getElementById('runningPRCard');
+  if (!card) return;
+
+  const emptyEl = document.getElementById('runningPREmpty');
+  const gridEl = document.getElementById('runningPRGrid');
+
+  const pr = getRunningPersonalRecordsData(S.runs);
+
+  if (!pr.hasRecords) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    if (gridEl) gridEl.style.display = 'none';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (gridEl) gridEl.style.display = 'grid';
+
+  // 1. Longest Run
+  const longestRunVal = document.getElementById('rprLongestRun');
+  const longestRunSub = document.getElementById('rprLongestRunSub');
+  if (longestRunVal) {
+    longestRunVal.textContent = pr.longestRun ? pr.longestRun.value : '—';
+    if (longestRunSub) longestRunSub.textContent = pr.longestRun ? pr.longestRun.sub : 'Single run distance';
+  }
+
+  // 2. Fastest Pace
+  const fastestPaceVal = document.getElementById('rprFastestPace');
+  const fastestPaceSub = document.getElementById('rprFastestPaceSub');
+  if (fastestPaceVal) {
+    fastestPaceVal.textContent = pr.fastestPace ? pr.fastestPace.value : '—';
+    if (fastestPaceSub) fastestPaceSub.textContent = pr.fastestPace ? pr.fastestPace.sub : 'Fastest average pace';
+  }
+
+  // 3. Longest Duration
+  const longestDurVal = document.getElementById('rprLongestDuration');
+  const longestDurSub = document.getElementById('rprLongestDurationSub');
+  if (longestDurVal) {
+    longestDurVal.textContent = pr.longestDuration ? pr.longestDuration.value : '—';
+    if (longestDurSub) longestDurSub.textContent = pr.longestDuration ? pr.longestDuration.sub : 'Single run duration';
+  }
+
+  // 4. Most Active Day
+  const mostActiveDayVal = document.getElementById('rprMostActiveDay');
+  const mostActiveDaySub = document.getElementById('rprMostActiveDaySub');
+  if (mostActiveDayVal) {
+    mostActiveDayVal.textContent = pr.mostActiveDay ? pr.mostActiveDay.value : '—';
+    if (mostActiveDaySub) mostActiveDaySub.textContent = pr.mostActiveDay ? pr.mostActiveDay.sub : 'Most distance in 1 day';
+  }
+
+  // 5. Highest Distance Week
+  const highestWeekVal = document.getElementById('rprHighestWeek');
+  const highestWeekSub = document.getElementById('rprHighestWeekSub');
+  if (highestWeekVal) {
+    highestWeekVal.textContent = pr.highestWeek ? pr.highestWeek.value : '—';
+    if (highestWeekSub) highestWeekSub.textContent = pr.highestWeek ? pr.highestWeek.sub : 'Most distance in 1 week';
+  }
+
+  // 6. Most Active Month
+  const mostActiveMonthVal = document.getElementById('rprMostActiveMonth');
+  const mostActiveMonthSub = document.getElementById('rprMostActiveMonthSub');
+  if (mostActiveMonthVal) {
+    mostActiveMonthVal.textContent = pr.mostActiveMonth ? pr.mostActiveMonth.value : '—';
+    if (mostActiveMonthSub) mostActiveMonthSub.textContent = pr.mostActiveMonth ? pr.mostActiveMonth.sub : 'Most distance in 1 month';
+  }
 }
 
 if (typeof window !== 'undefined') {
@@ -2172,6 +2476,8 @@ if (typeof window !== 'undefined') {
   window.getRunPaceSecPerKm = getRunPaceSecPerKm;
   window.getRunningStatsData = getRunningStatsData;
   window.renderRunningStats = renderRunningStats;
+  window.getRunningPersonalRecordsData = getRunningPersonalRecordsData;
+  window.renderRunningPersonalRecords = renderRunningPersonalRecords;
 }
 
 let activeHeatmapDateKey = null;
@@ -3626,6 +3932,8 @@ if (typeof window !== 'undefined') {
   window.getRunningStreak = getRunningStreak;
   window.getRunningStatsData = getRunningStatsData;
   window.renderRunningStats = renderRunningStats;
+  window.getRunningPersonalRecordsData = getRunningPersonalRecordsData;
+  window.renderRunningPersonalRecords = renderRunningPersonalRecords;
 }
 
 // ===================== NAV =====================
