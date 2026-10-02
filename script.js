@@ -96,6 +96,104 @@ let lastAddedHabitId = null;
 let prevTccPct = null;
 let isRunsLoading = false;
 let runHistoryError = null;
+let hasLoadedInitialData = false;
+const deletedRunIds = new Set();
+
+function getRunUniqueKey(r) {
+  if (!r || typeof r !== 'object') return null;
+  if (r.id !== undefined && r.id !== null && String(r.id).trim() !== '') {
+    return String(r.id);
+  }
+  return `legacy_${r.completedAt || 0}_${r.distanceMeters || 0}_${r.durationSec || 0}`;
+}
+
+function mergeRuns(primaryRuns, secondaryRuns) {
+  const map = new Map();
+  const listA = Array.isArray(primaryRuns) ? primaryRuns : [];
+  const listB = Array.isArray(secondaryRuns) ? secondaryRuns : [];
+
+  for (const r of listA) {
+    const key = getRunUniqueKey(r);
+    if (!key || deletedRunIds.has(key)) continue;
+    map.set(key, r);
+  }
+  for (const r of listB) {
+    const key = getRunUniqueKey(r);
+    if (!key || deletedRunIds.has(key)) continue;
+    if (!map.has(key)) {
+      map.set(key, r);
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const tsA = typeof a.completedAt === 'number' && !isNaN(a.completedAt)
+      ? a.completedAt
+      : (a.completedAt ? new Date(a.completedAt).getTime() || 0 : 0);
+    const tsB = typeof b.completedAt === 'number' && !isNaN(b.completedAt)
+      ? b.completedAt
+      : (b.completedAt ? new Date(b.completedAt).getTime() || 0 : 0);
+    return tsB - tsA;
+  });
+}
+
+function getPendingRunsKey(uid) {
+  return 'pt_pending_runs_' + (uid || 'default');
+}
+
+function loadPendingRunsMeta(uid) {
+  if (!uid || typeof localStorage === 'undefined') {
+    return { runs: [], deletedIds: [] };
+  }
+  try {
+    const raw = localStorage.getItem(getPendingRunsKey(uid));
+    if (!raw) return { runs: [], deletedIds: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      runs: Array.isArray(parsed?.runs) ? parsed.runs : [],
+      deletedIds: Array.isArray(parsed?.deletedIds) ? parsed.deletedIds.map(String) : []
+    };
+  } catch (e) {
+    return { runs: [], deletedIds: [] };
+  }
+}
+
+function savePendingRunsMeta(uid, meta) {
+  if (!uid || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(getPendingRunsKey(uid), JSON.stringify({
+      runs: Array.isArray(meta?.runs) ? meta.runs : [],
+      deletedIds: Array.isArray(meta?.deletedIds) ? meta.deletedIds : []
+    }));
+  } catch (e) {}
+}
+
+function recordPendingRunAdded(uid, runEntry) {
+  if (!uid || !runEntry) return;
+  const meta = loadPendingRunsMeta(uid);
+  const key = getRunUniqueKey(runEntry);
+  if (!key) return;
+  meta.deletedIds = meta.deletedIds.filter(id => id !== key);
+  meta.runs = [runEntry, ...meta.runs.filter(r => getRunUniqueKey(r) !== key)];
+  savePendingRunsMeta(uid, meta);
+}
+
+function recordPendingRunDeleted(uid, runId) {
+  if (!uid || !runId) return;
+  const key = String(runId);
+  const meta = loadPendingRunsMeta(uid);
+  if (!meta.deletedIds.includes(key)) {
+    meta.deletedIds.push(key);
+  }
+  meta.runs = meta.runs.filter(r => getRunUniqueKey(r) !== key);
+  savePendingRunsMeta(uid, meta);
+}
+
+function clearPendingRunsMeta(uid) {
+  if (!uid || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(getPendingRunsKey(uid));
+  } catch (e) {}
+}
 
 function resetState() {
   S = getInitialState();
@@ -105,6 +203,8 @@ function resetState() {
   prevTccPct = null;
   isRunsLoading = false;
   runHistoryError = null;
+  hasLoadedInitialData = false;
+  deletedRunIds.clear();
   if (typeof closeQuickAdd === 'function') closeQuickAdd();
   if (typeof discardRun === 'function') discardRun();
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
@@ -125,20 +225,26 @@ async function loadFromFirebase() {
   if (!currentUser) return;
   isRunsLoading = true;
   runHistoryError = null;
+  hasLoadedInitialData = false;
   if (typeof renderRunHistory === 'function') renderRunHistory();
+
+  const pendingMeta = loadPendingRunsMeta(currentUser.uid);
+  pendingMeta.deletedIds.forEach(id => deletedRunIds.add(String(id)));
+  const inMemoryAndPendingRuns = mergeRuns(S.runs, pendingMeta.runs);
 
   if (currentUser.isGuest) {
     try {
       const raw = localStorage.getItem('pt_data_' + currentUser.uid);
       if (raw) {
         const data = JSON.parse(raw);
+        const mergedRuns = mergeRuns(inMemoryAndPendingRuns, data.runs);
         S = {
           habits: data.habits || JSON.parse(JSON.stringify(DEFAULT_HABITS)),
           history: data.history || {},
           badges: data.badges || [],
           subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
           subHistory: data.subHistory || {},
-          runs: Array.isArray(data.runs) ? data.runs : [],
+          runs: mergedRuns,
           winterArcGoals: data.winterArcGoals || {
             targetRuns: 30,
             targetDistanceKm: 100,
@@ -147,11 +253,14 @@ async function loadFromFirebase() {
           }
         };
       } else {
-        if (!Array.isArray(S.runs)) S.runs = [];
+        S.runs = mergeRuns(inMemoryAndPendingRuns, []);
       }
+      hasLoadedInitialData = true;
+      clearPendingRunsMeta(currentUser.uid);
     } catch(e) {
       console.error('Local load error:', e);
       runHistoryError = 'Could not load local history.';
+      S.runs = inMemoryAndPendingRuns;
     } finally {
       isRunsLoading = false;
       if (typeof renderRunHistory === 'function') renderRunHistory();
@@ -163,15 +272,22 @@ async function loadFromFirebase() {
   }
   try {
     const snap = await getDoc(getUserDocRef());
+    const latestLocalRuns = mergeRuns(S.runs, inMemoryAndPendingRuns);
     if (snap.exists()) {
       const data = snap.data();
+      const remoteRuns = Array.isArray(data.runs) ? data.runs : [];
+      const mergedRuns = mergeRuns(latestLocalRuns, remoteRuns);
+      const mergedHistory = { ...(data.history || {}) };
+      Object.keys(S.history || {}).forEach(k => {
+        mergedHistory[k] = [...new Set([...(mergedHistory[k] || []), ...(S.history[k] || [])])];
+      });
       S = {
         habits: data.habits || JSON.parse(JSON.stringify(DEFAULT_HABITS)),
-        history: data.history || {},
+        history: mergedHistory,
         badges: data.badges || [],
         subItems: data.subItems || { h_gym: JSON.parse(JSON.stringify(DEFAULT_EXERCISE_ITEMS)) },
         subHistory: data.subHistory || {},
-        runs: Array.isArray(data.runs) ? data.runs : [],
+        runs: mergedRuns,
         winterArcGoals: data.winterArcGoals || {
           targetRuns: 30,
           targetDistanceKm: 100,
@@ -179,13 +295,21 @@ async function loadFromFirebase() {
           targetRunningDays: 30
         }
       };
+      hasLoadedInitialData = true;
+      if (mergedRuns.length !== remoteRuns.length || pendingMeta.runs.length > 0 || pendingMeta.deletedIds.length > 0) {
+        await saveToFirebase(true);
+      } else {
+        clearPendingRunsMeta(currentUser.uid);
+      }
     } else {
-      if (!Array.isArray(S.runs)) S.runs = [];
-      await saveToFirebase();
+      S.runs = mergeRuns(latestLocalRuns, []);
+      hasLoadedInitialData = true;
+      await saveToFirebase(true);
     }
   } catch(e) {
     console.error('Firebase load error:', e);
     runHistoryError = 'Could not load runs from cloud.';
+    S.runs = mergeRuns(S.runs, inMemoryAndPendingRuns);
   } finally {
     isRunsLoading = false;
     if (typeof renderRunHistory === 'function') renderRunHistory();
@@ -194,32 +318,125 @@ async function loadFromFirebase() {
   }
 }
 
-function saveToFirebase() {
-  if (!currentUser) return;
-  if (currentUser.isGuest) {
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => {
+function saveGuestDataImmediate() {
+  if (!currentUser || !currentUser.isGuest) return false;
+  try {
+    const key = 'pt_data_' + currentUser.uid;
+    const pendingMeta = loadPendingRunsMeta(currentUser.uid);
+    pendingMeta.deletedIds.forEach(id => deletedRunIds.add(String(id)));
+    S.runs = mergeRuns(S.runs, pendingMeta.runs);
+
+    const raw = localStorage.getItem(key);
+    if (raw) {
       try {
-        localStorage.setItem('pt_data_' + currentUser.uid, JSON.stringify(S));
-        updateSyncLabel('locally saved');
-      } catch(e) {
-        console.error('Local save error:', e);
+        const existing = JSON.parse(raw);
+        if (existing && typeof existing === 'object') {
+          S.runs = mergeRuns(S.runs, existing.runs);
+          if (!hasLoadedInitialData) {
+            const mergedHistory = { ...(existing.history || {}) };
+            Object.keys(S.history || {}).forEach(k => {
+              mergedHistory[k] = [...new Set([...(mergedHistory[k] || []), ...(S.history[k] || [])])];
+            });
+            S.history = mergedHistory;
+            if (Array.isArray(existing.habits) && existing.habits.length > 0) S.habits = existing.habits;
+            if (Array.isArray(existing.badges) && existing.badges.length > 0) S.badges = existing.badges;
+            if (existing.subItems && typeof existing.subItems === 'object') S.subItems = existing.subItems;
+            if (existing.subHistory && typeof existing.subHistory === 'object') S.subHistory = existing.subHistory;
+            if (existing.winterArcGoals && typeof existing.winterArcGoals === 'object') S.winterArcGoals = existing.winterArcGoals;
+            hasLoadedInitialData = true;
+            runHistoryError = null;
+          }
+        }
+      } catch (parseErr) {
+        if (!hasLoadedInitialData) {
+          console.error('Local save aborted to prevent overwriting unreadable storage:', parseErr);
+          return false;
+        }
       }
-    }, 500);
-    return;
-  }
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(async () => {
-    try {
-      const ref = getUserDocRef();
-      if (ref) {
-        await setDoc(ref, S);
-        updateSyncLabel('abhi');
-      }
-    } catch(e) {
-      console.error('Firebase save error:', e);
+    } else {
+      S.runs = mergeRuns(S.runs, []);
+      hasLoadedInitialData = true;
     }
+    localStorage.setItem(key, JSON.stringify(S));
+    clearPendingRunsMeta(currentUser.uid);
+    updateSyncLabel('locally saved');
+    return true;
+  } catch(e) {
+    console.error('Local save error:', e);
+    return false;
+  }
+}
+
+async function saveFirebaseDataImmediate() {
+  if (!currentUser || currentUser.isGuest) return false;
+  try {
+    const ref = getUserDocRef();
+    if (!ref) return false;
+
+    const pendingMeta = loadPendingRunsMeta(currentUser.uid);
+    pendingMeta.deletedIds.forEach(id => deletedRunIds.add(String(id)));
+    S.runs = mergeRuns(S.runs, pendingMeta.runs);
+
+    if (!hasLoadedInitialData) {
+      // Fetch existing remote document before saving so we never overwrite unloaded data
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const remoteData = snap.data();
+        S.runs = mergeRuns(S.runs, remoteData.runs);
+        const mergedHistory = { ...(remoteData.history || {}) };
+        Object.keys(S.history || {}).forEach(k => {
+          mergedHistory[k] = [...new Set([...(mergedHistory[k] || []), ...(S.history[k] || [])])];
+        });
+        S.history = mergedHistory;
+        if (Array.isArray(remoteData.habits) && remoteData.habits.length > 0) S.habits = remoteData.habits;
+        if (Array.isArray(remoteData.badges) && remoteData.badges.length > 0) S.badges = remoteData.badges;
+        if (remoteData.subItems && typeof remoteData.subItems === 'object') S.subItems = remoteData.subItems;
+        if (remoteData.subHistory && typeof remoteData.subHistory === 'object') S.subHistory = remoteData.subHistory;
+        if (remoteData.winterArcGoals && typeof remoteData.winterArcGoals === 'object') S.winterArcGoals = remoteData.winterArcGoals;
+      } else {
+        S.runs = mergeRuns(S.runs, []);
+      }
+      hasLoadedInitialData = true;
+      runHistoryError = null;
+    } else {
+      S.runs = mergeRuns(S.runs, []);
+    }
+
+    await setDoc(ref, S, { merge: true });
+    clearPendingRunsMeta(currentUser.uid);
+    updateSyncLabel('abhi');
+    return true;
+  } catch(e) {
+    console.error('Firebase save error:', e);
+    return false;
+  }
+}
+
+function saveToFirebase(immediate = false) {
+  if (!currentUser) return Promise.resolve(false);
+  clearTimeout(saveTimeout);
+  saveTimeout = null;
+
+  if (currentUser.isGuest) {
+    if (immediate) {
+      return Promise.resolve(saveGuestDataImmediate());
+    }
+    saveTimeout = setTimeout(() => {
+      saveTimeout = null;
+      saveGuestDataImmediate();
+    }, 500);
+    return Promise.resolve(true);
+  }
+
+  if (immediate) {
+    return saveFirebaseDataImmediate();
+  }
+
+  saveTimeout = setTimeout(async () => {
+    saveTimeout = null;
+    await saveFirebaseDataImmediate();
   }, 800);
+  return Promise.resolve(true);
 }
 
 function updateSyncLabel(when) {
@@ -235,23 +452,41 @@ function subscribeToChanges() {
   unsubscribeSnapshot = onSnapshot(ref, (snap) => {
     if (!snap.exists()) return;
     const data = snap.data();
-    const newStr = JSON.stringify(data);
+    const pendingMeta = loadPendingRunsMeta(currentUser.uid);
+    pendingMeta.deletedIds.forEach(id => deletedRunIds.add(String(id)));
+    const localRuns = mergeRuns(S.runs, pendingMeta.runs);
+    const mergedRuns = mergeRuns(localRuns, data.runs);
+
+    let nextHistory = data.history || {};
+    if (!hasLoadedInitialData || saveTimeout !== null) {
+      nextHistory = { ...(data.history || {}) };
+      Object.keys(S.history || {}).forEach(k => {
+        nextHistory[k] = [...new Set([...(nextHistory[k] || []), ...(S.history[k] || [])])];
+      });
+    }
+
+    const nextS = {
+      habits: data.habits || S.habits,
+      history: nextHistory,
+      badges: data.badges || [],
+      subItems: data.subItems || {},
+      subHistory: data.subHistory || {},
+      runs: mergedRuns,
+      winterArcGoals: data.winterArcGoals || S.winterArcGoals || {
+        targetRuns: 30,
+        targetDistanceKm: 100,
+        targetHabits: 500,
+        targetRunningDays: 30
+      }
+    };
+
+    hasLoadedInitialData = true;
+    runHistoryError = null;
+
+    const newStr = JSON.stringify(nextS);
     const curStr = JSON.stringify(S);
     if (newStr !== curStr) {
-      S = {
-        habits: data.habits || S.habits,
-        history: data.history || {},
-        badges: data.badges || [],
-        subItems: data.subItems || {},
-        subHistory: data.subHistory || {},
-        runs: Array.isArray(data.runs) ? data.runs : (S.runs || []),
-        winterArcGoals: data.winterArcGoals || S.winterArcGoals || {
-          targetRuns: 30,
-          targetDistanceKm: 100,
-          targetHabits: 500,
-          targetRunningDays: 30
-        }
-      };
+      S = nextS;
       renderToday();
       if (typeof renderRunHistory === 'function') renderRunHistory();
       if (typeof renderRunningStats === 'function') renderRunningStats();
@@ -4383,11 +4618,16 @@ function doneRun() {
         completedAt: runToSave.completedAt || Date.now(),
         route: Array.isArray(runToSave.route) ? runToSave.route : []
       };
-      S.runs.unshift(newEntry);
+      deletedRunIds.delete(String(newEntry.id));
+      S.runs = mergeRuns([newEntry], S.runs);
+      if (currentUser) {
+        recordPendingRunAdded(currentUser.uid, newEntry);
+      }
+      runHistoryError = null;
       renderRunHistory();
       renderRunningStats();
       renderWinterArc();
-      saveToFirebase();
+      saveToFirebase(true);
       toast('Run saved to history! 🏃');
     } catch (err) {
       console.error('Error saving run to history:', err);
@@ -4405,15 +4645,22 @@ function deleteRun(runId) {
   if (!window.confirm('Delete this run from your history?')) return;
   if (!Array.isArray(S.runs)) return;
 
+  const targetKey = String(runId);
   const prevLen = S.runs.length;
-  S.runs = S.runs.filter(r => r.id !== runId);
+  deletedRunIds.add(targetKey);
+  S.runs = S.runs.filter(r => getRunUniqueKey(r) !== targetKey && r.id !== runId);
   if (S.runs.length !== prevLen) {
+    if (currentUser) {
+      recordPendingRunDeleted(currentUser.uid, targetKey);
+    }
     closeRouteModal();
     renderRunHistory();
     renderRunningStats();
     renderWinterArc();
-    saveToFirebase();
+    saveToFirebase(true);
     toast('Run deleted');
+  } else {
+    deletedRunIds.delete(targetKey);
   }
 }
 
@@ -4513,6 +4760,7 @@ if (typeof window !== 'undefined') {
   window.renderRunningView = renderRunningView;
   window.renderRunHistory = renderRunHistory;
   window.deleteRun = deleteRun;
+  window.mergeRuns = mergeRuns;
   window.startRun = startRun;
   window.pauseRun = pauseRun;
   window.resumeRun = resumeRun;
@@ -4599,7 +4847,11 @@ document.addEventListener('click', e => {
 
 document.getElementById('signOutBtn').addEventListener('click', async () => {
   if (unsubscribeSnapshot) unsubscribeSnapshot();
+  if (saveTimeout) {
+    await saveToFirebase(true);
+  }
   clearTimeout(saveTimeout);
+  saveTimeout = null;
   localStorage.removeItem('pt_active_guest');
   resetState();
   if (auth) {
@@ -4607,6 +4859,17 @@ document.getElementById('signOutBtn').addEventListener('click', async () => {
   }
   currentUser=null;
   showLogin();
+});
+
+window.addEventListener('pagehide', () => {
+  if (saveTimeout) {
+    saveToFirebase(true);
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && saveTimeout) {
+    saveToFirebase(true);
+  }
 });
 
 function loginAsGuest() {
