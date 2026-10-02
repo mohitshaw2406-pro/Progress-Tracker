@@ -5065,6 +5065,8 @@ if (typeof window !== 'undefined') {
   window.clearActiveRunSnapshot = clearActiveRunSnapshot;
   window.getActiveRunStorageKey = getActiveRunStorageKey;
   window.resetRunningSessionInMemory = resetRunningSessionInMemory;
+  window.handleBackgroundSuspension = handleBackgroundSuspension;
+  window.handleForegroundResume = handleForegroundResume;
   window.haversineDistanceMeters = haversineDistanceMeters;
   window.formatRunDistance = formatRunDistance;
   window.calculateAveragePace = calculateAveragePace;
@@ -5159,27 +5161,62 @@ document.getElementById('signOutBtn').addEventListener('click', async () => {
   showLogin();
 });
 
-window.addEventListener('pagehide', () => {
+function handleBackgroundSuspension() {
   if (runningSession.state === 'RUNNING' || runningSession.state === 'PAUSED' || runningSession.state === 'FINISHED') {
     saveActiveRunSnapshot();
   }
   if (saveTimeout) {
     saveToFirebase(true);
   }
+  if (runningSession.state === 'RUNNING') {
+    stopGpsWatch();
+    if (runningSession.timerInterval) {
+      clearInterval(runningSession.timerInterval);
+      runningSession.timerInterval = null;
+    }
+  }
+}
+
+function handleForegroundResume() {
+  if (runningSession.state === 'RUNNING') {
+    runningSession.isResumeBaseline = true;
+    updateRunMetricsUI();
+    startGpsWatch();
+    if (runningSession.timerInterval) {
+      clearInterval(runningSession.timerInterval);
+      runningSession.timerInterval = null;
+    }
+    runningSession.timerInterval = setInterval(() => {
+      updateRunMetricsUI();
+      if (Date.now() - (runningSession.lastSnapshotSaveMs || 0) >= 2000) {
+        saveActiveRunSnapshot();
+      }
+    }, 500);
+    saveActiveRunSnapshot();
+  } else if (runningSession.state === 'PAUSED' || runningSession.state === 'FINISHED') {
+    updateRunMetricsUI();
+  } else if (runningSession.state === 'IDLE' && currentUser) {
+    if (typeof restoreActiveRunSnapshot === 'function') {
+      restoreActiveRunSnapshot();
+    }
+  }
+}
+
+window.addEventListener('pagehide', () => {
+  handleBackgroundSuspension();
 });
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
-    if (runningSession.state === 'RUNNING' || runningSession.state === 'PAUSED' || runningSession.state === 'FINISHED') {
-      saveActiveRunSnapshot();
-    }
-    if (saveTimeout) {
-      saveToFirebase(true);
-    }
+    handleBackgroundSuspension();
   } else if (document.visibilityState === 'visible') {
-    if (runningSession.state === 'RUNNING') {
-      runningSession.isResumeBaseline = true;
-      updateRunMetricsUI();
-    }
+    handleForegroundResume();
+  }
+});
+
+window.addEventListener('pageshow', () => {
+  if (document.visibilityState === 'visible') {
+    handleForegroundResume();
   }
 });
 
