@@ -206,7 +206,7 @@ function resetState() {
   hasLoadedInitialData = false;
   deletedRunIds.clear();
   if (typeof closeQuickAdd === 'function') closeQuickAdd();
-  if (typeof discardRun === 'function') discardRun();
+  if (typeof resetRunningSessionInMemory === 'function') resetRunningSessionInMemory();
   if (typeof clearHeatmapSelection === 'function') clearHeatmapSelection();
   renderPersonalRecords();
   renderHabitInsights();
@@ -263,6 +263,12 @@ async function loadFromFirebase() {
       S.runs = inMemoryAndPendingRuns;
     } finally {
       isRunsLoading = false;
+      if (typeof restoreActiveRunSnapshot === 'function') {
+        const owner = getActiveRunOwner();
+        if (runningSession.state === 'IDLE' || runningSession.ownerUid !== owner.uid || Boolean(runningSession.ownerIsGuest) !== owner.isGuest) {
+          restoreActiveRunSnapshot();
+        }
+      }
       if (typeof renderRunHistory === 'function') renderRunHistory();
       if (typeof renderRunningStats === 'function') renderRunningStats();
       if (typeof renderWinterArc === 'function') renderWinterArc();
@@ -312,6 +318,12 @@ async function loadFromFirebase() {
     S.runs = mergeRuns(S.runs, inMemoryAndPendingRuns);
   } finally {
     isRunsLoading = false;
+    if (typeof restoreActiveRunSnapshot === 'function') {
+      const owner = getActiveRunOwner();
+      if (runningSession.state === 'IDLE' || runningSession.ownerUid !== owner.uid || Boolean(runningSession.ownerIsGuest) !== owner.isGuest) {
+        restoreActiveRunSnapshot();
+      }
+    }
     if (typeof renderRunHistory === 'function') renderRunHistory();
     if (typeof renderRunningStats === 'function') renderRunningStats();
     if (typeof renderWinterArc === 'function') renderWinterArc();
@@ -3821,6 +3833,9 @@ if (typeof window !== 'undefined') {
 // ===================== RUNNING MODULE (R1-B GPS ENGINE) =====================
 const runningSession = {
   state: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED' | 'FINISHED' | 'ERROR'
+  ownerUid: null,
+  ownerIsGuest: false,
+  lastSnapshotSaveMs: 0,
   watchId: null,
   accumulatedActiveMs: 0,
   segmentStartMs: null,
@@ -3830,7 +3845,7 @@ const runningSession = {
   timerInterval: null,
   gpsStatus: 'idle', // 'idle' | 'acquiring' | 'active' | 'poor' | 'error'
   errorMessage: null,
-  // R2-A Completed Run Summary State (in-memory only, no persistence)
+  // R2-A Completed Run Summary State
   completedRun: null, // { distanceMeters, durationSec, averagePace, completedAt, route }
   // R3-A In-memory GPS route array for active run
   route: [], // Array<{ lat: number, lon: number, timestamp: number }>
@@ -3846,6 +3861,81 @@ const runningSession = {
     lastErrorMessage: null
   }
 };
+
+function getActiveRunOwner() {
+  if (currentUser && currentUser.uid) {
+    return {
+      uid: String(currentUser.uid),
+      isGuest: Boolean(currentUser.isGuest)
+    };
+  }
+  return {
+    uid: 'anonymous',
+    isGuest: false
+  };
+}
+
+function getActiveRunStorageKey(owner = getActiveRunOwner()) {
+  const modePrefix = owner.isGuest ? 'guest' : 'fb';
+  return `pt_active_run_${modePrefix}_${owner.uid}`;
+}
+
+function saveActiveRunSnapshot() {
+  if (typeof localStorage === 'undefined') return false;
+  const st = runningSession.state;
+  if (st !== 'RUNNING' && st !== 'PAUSED' && st !== 'FINISHED') return false;
+
+  const owner = getActiveRunOwner();
+  if (
+    runningSession.ownerUid &&
+    (runningSession.ownerUid !== owner.uid || Boolean(runningSession.ownerIsGuest) !== owner.isGuest)
+  ) {
+    return false;
+  }
+  runningSession.ownerUid = owner.uid;
+  runningSession.ownerIsGuest = owner.isGuest;
+
+  const dist = typeof runningSession.totalDistanceMeters === 'number' && isFinite(runningSession.totalDistanceMeters) && runningSession.totalDistanceMeters >= 0
+    ? runningSession.totalDistanceMeters
+    : 0;
+
+  const snapshot = {
+    uid: owner.uid,
+    isGuest: owner.isGuest,
+    state: st,
+    accumulatedActiveMs: typeof runningSession.accumulatedActiveMs === 'number' && isFinite(runningSession.accumulatedActiveMs) && runningSession.accumulatedActiveMs >= 0
+      ? runningSession.accumulatedActiveMs
+      : 0,
+    segmentStartMs: st === 'RUNNING' && typeof runningSession.segmentStartMs === 'number' && isFinite(runningSession.segmentStartMs)
+      ? runningSession.segmentStartMs
+      : null,
+    totalDistanceMeters: dist,
+    distance: dist,
+    lastPosition: runningSession.lastPosition ? { ...runningSession.lastPosition } : null,
+    route: Array.isArray(runningSession.route) ? getValidRoutePoints(runningSession.route) : [],
+    completedRun: runningSession.completedRun ? {
+      ...runningSession.completedRun,
+      route: Array.isArray(runningSession.completedRun.route) ? getValidRoutePoints(runningSession.completedRun.route) : []
+    } : null,
+    savedAt: Date.now()
+  };
+
+  try {
+    localStorage.setItem(getActiveRunStorageKey(owner), JSON.stringify(snapshot));
+    runningSession.lastSnapshotSaveMs = Date.now();
+    return true;
+  } catch (e) {
+    console.error('Failed to save active run snapshot:', e);
+    return false;
+  }
+}
+
+function clearActiveRunSnapshot(owner = getActiveRunOwner()) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(getActiveRunStorageKey(owner));
+  } catch (e) {}
+}
 
 // R3-A Route Point Collector (appends accepted GPS points to active run)
 function appendRoutePoint(lat, lon, timestamp) {
@@ -4058,6 +4148,7 @@ function handleGpsSuccess(position) {
     runningSession.isResumeBaseline = false;
     runningSession.debug.acceptedPoints++;
     appendRoutePoint(lat, lon, timestamp);
+    saveActiveRunSnapshot();
     console.log(`[GPS Trace #5: Baseline Set] First point or post-resume baseline established at accuracy ±${Math.round(accuracy)}m`);
     updateRunMetricsUI();
     return;
@@ -4106,6 +4197,7 @@ function handleGpsSuccess(position) {
     runningSession.lastPosition = { lat, lon, timestamp, accuracy };
     runningSession.debug.acceptedPoints++;
     appendRoutePoint(lat, lon, timestamp);
+    saveActiveRunSnapshot();
     console.log(`[GPS Trace #7 & #8: Distance Added] +${segmentMeters.toFixed(2)}m, Total: ${runningSession.totalDistanceMeters.toFixed(2)}m`);
     updateRunMetricsUI();
   } else {
@@ -4466,6 +4558,9 @@ function renderRunningView() {
 }
 
 function startRun() {
+  const owner = getActiveRunOwner();
+  runningSession.ownerUid = owner.uid;
+  runningSession.ownerIsGuest = owner.isGuest;
   runningSession.state = 'RUNNING';
   runningSession.accumulatedActiveMs = 0;
   runningSession.segmentStartMs = Date.now();
@@ -4486,11 +4581,15 @@ function startRun() {
     lastErrorMessage: null
   };
 
+  saveActiveRunSnapshot();
   startGpsWatch();
 
   if (runningSession.timerInterval) clearInterval(runningSession.timerInterval);
   runningSession.timerInterval = setInterval(() => {
     updateRunMetricsUI();
+    if (Date.now() - (runningSession.lastSnapshotSaveMs || 0) >= 2000) {
+      saveActiveRunSnapshot();
+    }
   }, 500);
 
   renderRunningView();
@@ -4512,6 +4611,7 @@ function pauseRun() {
   }
 
   runningSession.state = 'PAUSED';
+  saveActiveRunSnapshot();
   updateRunMetricsUI();
   renderRunningView();
 }
@@ -4523,11 +4623,15 @@ function resumeRun() {
   runningSession.segmentStartMs = Date.now();
   runningSession.isResumeBaseline = true;
 
+  saveActiveRunSnapshot();
   startGpsWatch();
 
   if (runningSession.timerInterval) clearInterval(runningSession.timerInterval);
   runningSession.timerInterval = setInterval(() => {
     updateRunMetricsUI();
+    if (Date.now() - (runningSession.lastSnapshotSaveMs || 0) >= 2000) {
+      saveActiveRunSnapshot();
+    }
   }, 500);
 
   updateRunMetricsUI();
@@ -4565,10 +4669,11 @@ function finishRun() {
   };
 
   runningSession.state = 'FINISHED';
+  saveActiveRunSnapshot();
   renderRunningView();
 }
 
-function discardRun() {
+function resetRunningSessionInMemory() {
   stopGpsWatch();
 
   if (runningSession.timerInterval) {
@@ -4577,6 +4682,9 @@ function discardRun() {
   }
 
   runningSession.state = 'IDLE';
+  runningSession.ownerUid = null;
+  runningSession.ownerIsGuest = false;
+  runningSession.lastSnapshotSaveMs = 0;
   runningSession.accumulatedActiveMs = 0;
   runningSession.segmentStartMs = null;
   runningSession.totalDistanceMeters = 0;
@@ -4599,13 +4707,195 @@ function discardRun() {
   renderRunningView();
 }
 
+function discardRun() {
+  clearActiveRunSnapshot();
+  resetRunningSessionInMemory();
+}
+
+function restoreActiveRunSnapshot() {
+  const owner = getActiveRunOwner();
+
+  if (
+    runningSession.state !== 'IDLE' &&
+    runningSession.ownerUid &&
+    (runningSession.ownerUid !== owner.uid || Boolean(runningSession.ownerIsGuest) !== owner.isGuest)
+  ) {
+    resetRunningSessionInMemory();
+  }
+
+  if (typeof localStorage === 'undefined') return false;
+  const storageKey = getActiveRunStorageKey(owner);
+  let raw = null;
+  try {
+    raw = localStorage.getItem(storageKey);
+  } catch (e) {
+    return false;
+  }
+  if (!raw) return false;
+
+  let snap = null;
+  try {
+    snap = JSON.parse(raw);
+  } catch (e) {
+    console.warn('Malformed active run snapshot JSON; clearing.');
+    clearActiveRunSnapshot(owner);
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  if (!snap || typeof snap !== 'object' || Array.isArray(snap)) {
+    clearActiveRunSnapshot(owner);
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  if (snap.uid !== owner.uid || Boolean(snap.isGuest) !== owner.isGuest) {
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  const validStates = ['RUNNING', 'PAUSED', 'FINISHED'];
+  if (!validStates.includes(snap.state)) {
+    clearActiveRunSnapshot(owner);
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  if (typeof snap.accumulatedActiveMs !== 'number' || !isFinite(snap.accumulatedActiveMs) || snap.accumulatedActiveMs < 0) {
+    clearActiveRunSnapshot(owner);
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  const rawDist = typeof snap.totalDistanceMeters === 'number' ? snap.totalDistanceMeters : snap.distance;
+  if (typeof rawDist !== 'number' || !isFinite(rawDist) || rawDist < 0) {
+    clearActiveRunSnapshot(owner);
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  if (snap.route !== undefined && !Array.isArray(snap.route)) {
+    clearActiveRunSnapshot(owner);
+    resetRunningSessionInMemory();
+    return false;
+  }
+
+  if (snap.state === 'RUNNING') {
+    if (typeof snap.segmentStartMs !== 'number' || !isFinite(snap.segmentStartMs) || snap.segmentStartMs <= 0) {
+      clearActiveRunSnapshot(owner);
+      resetRunningSessionInMemory();
+      return false;
+    }
+  }
+
+  if (snap.state === 'FINISHED') {
+    if (!snap.completedRun || typeof snap.completedRun !== 'object' || Array.isArray(snap.completedRun)) {
+      clearActiveRunSnapshot(owner);
+      resetRunningSessionInMemory();
+      return false;
+    }
+  }
+
+  const validRoute = getValidRoutePoints(snap.route || []).map(p => ({
+    lat: p.lat,
+    lon: p.lon,
+    timestamp: typeof p.timestamp === 'number' && isFinite(p.timestamp) ? p.timestamp : Date.now()
+  }));
+
+  let validLastPos = null;
+  if (
+    snap.lastPosition &&
+    typeof snap.lastPosition === 'object' &&
+    typeof snap.lastPosition.lat === 'number' &&
+    typeof snap.lastPosition.lon === 'number' &&
+    isFinite(snap.lastPosition.lat) &&
+    isFinite(snap.lastPosition.lon) &&
+    snap.lastPosition.lat >= -90 &&
+    snap.lastPosition.lat <= 90 &&
+    snap.lastPosition.lon >= -180 &&
+    snap.lastPosition.lon <= 180
+  ) {
+    validLastPos = {
+      lat: snap.lastPosition.lat,
+      lon: snap.lastPosition.lon,
+      timestamp: typeof snap.lastPosition.timestamp === 'number' && isFinite(snap.lastPosition.timestamp)
+        ? snap.lastPosition.timestamp
+        : Date.now(),
+      accuracy: typeof snap.lastPosition.accuracy === 'number' && isFinite(snap.lastPosition.accuracy)
+        ? snap.lastPosition.accuracy
+        : null
+    };
+  }
+
+  stopGpsWatch();
+  if (runningSession.timerInterval) {
+    clearInterval(runningSession.timerInterval);
+    runningSession.timerInterval = null;
+  }
+
+  runningSession.ownerUid = owner.uid;
+  runningSession.ownerIsGuest = owner.isGuest;
+  runningSession.state = snap.state;
+  runningSession.accumulatedActiveMs = snap.accumulatedActiveMs;
+  runningSession.totalDistanceMeters = rawDist;
+  runningSession.lastPosition = validLastPos;
+  runningSession.route = validRoute;
+  runningSession.errorMessage = null;
+
+  if (snap.state === 'RUNNING') {
+    runningSession.segmentStartMs = Math.min(snap.segmentStartMs, Date.now());
+    runningSession.isResumeBaseline = true;
+    runningSession.completedRun = null;
+
+    startGpsWatch();
+    runningSession.timerInterval = setInterval(() => {
+      updateRunMetricsUI();
+      if (Date.now() - (runningSession.lastSnapshotSaveMs || 0) >= 2000) {
+        saveActiveRunSnapshot();
+      }
+    }, 500);
+  } else if (snap.state === 'PAUSED') {
+    runningSession.segmentStartMs = null;
+    runningSession.isResumeBaseline = true;
+    runningSession.completedRun = null;
+  } else if (snap.state === 'FINISHED') {
+    runningSession.segmentStartMs = null;
+    runningSession.isResumeBaseline = false;
+    const cr = snap.completedRun;
+    const crDist = typeof cr.distanceMeters === 'number' && isFinite(cr.distanceMeters) && cr.distanceMeters >= 0
+      ? cr.distanceMeters
+      : rawDist;
+    const crDur = typeof cr.durationSec === 'number' && isFinite(cr.durationSec) && cr.durationSec >= 0
+      ? cr.durationSec
+      : Math.floor(snap.accumulatedActiveMs / 1000);
+    runningSession.completedRun = {
+      id: cr.id || ('run_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8)),
+      distanceMeters: crDist,
+      durationSec: crDur,
+      averagePace: typeof cr.averagePace === 'string' && cr.averagePace
+        ? cr.averagePace
+        : calculateAveragePace(crDur * 1000, crDist),
+      completedAt: typeof cr.completedAt === 'number' && isFinite(cr.completedAt)
+        ? cr.completedAt
+        : Date.now(),
+      route: Array.isArray(cr.route) ? getValidRoutePoints(cr.route) : [...validRoute],
+      saved: false
+    };
+  }
+
+  updateRunMetricsUI();
+  renderRunningView();
+  return true;
+}
+
 let isSavingRun = false;
 
 function doneRun() {
   if (isSavingRun) return;
 
   const runToSave = runningSession.completedRun;
-  if (runToSave && !runToSave.saved) {
+  if (!runToSave) return;
+  if (!runToSave.saved) {
     runToSave.saved = true;
     isSavingRun = true;
     try {
@@ -4630,14 +4920,17 @@ function doneRun() {
       saveToFirebase(true);
       toast('Run saved to history! 🏃');
     } catch (err) {
+      runToSave.saved = false;
       console.error('Error saving run to history:', err);
       toast('Failed to save run. Please try again.');
+      return;
     } finally {
       isSavingRun = false;
     }
   }
 
-  discardRun();
+  clearActiveRunSnapshot();
+  resetRunningSessionInMemory();
 }
 
 function deleteRun(runId) {
@@ -4767,6 +5060,11 @@ if (typeof window !== 'undefined') {
   window.finishRun = finishRun;
   window.discardRun = discardRun;
   window.doneRun = doneRun;
+  window.saveActiveRunSnapshot = saveActiveRunSnapshot;
+  window.restoreActiveRunSnapshot = restoreActiveRunSnapshot;
+  window.clearActiveRunSnapshot = clearActiveRunSnapshot;
+  window.getActiveRunStorageKey = getActiveRunStorageKey;
+  window.resetRunningSessionInMemory = resetRunningSessionInMemory;
   window.haversineDistanceMeters = haversineDistanceMeters;
   window.formatRunDistance = formatRunDistance;
   window.calculateAveragePace = calculateAveragePace;
@@ -4862,13 +5160,26 @@ document.getElementById('signOutBtn').addEventListener('click', async () => {
 });
 
 window.addEventListener('pagehide', () => {
+  if (runningSession.state === 'RUNNING' || runningSession.state === 'PAUSED' || runningSession.state === 'FINISHED') {
+    saveActiveRunSnapshot();
+  }
   if (saveTimeout) {
     saveToFirebase(true);
   }
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && saveTimeout) {
-    saveToFirebase(true);
+  if (document.visibilityState === 'hidden') {
+    if (runningSession.state === 'RUNNING' || runningSession.state === 'PAUSED' || runningSession.state === 'FINISHED') {
+      saveActiveRunSnapshot();
+    }
+    if (saveTimeout) {
+      saveToFirebase(true);
+    }
+  } else if (document.visibilityState === 'visible') {
+    if (runningSession.state === 'RUNNING') {
+      runningSession.isResumeBaseline = true;
+      updateRunMetricsUI();
+    }
   }
 });
 
