@@ -1,256 +1,172 @@
-# 🚀 Progress Tracker
+# 🚀 Progress Tracker (PWA)
 
-### Build Consistency. Track Progress. Become Better.
+A comprehensive, production-grade **Habit & Fitness Tracking Web App** built with modern **Vanilla JavaScript, HTML5, CSS3**, featuring **Firebase Cloud Sync, Offline Guest Mode, PWA Installability, Real-Time GPS Running Tracking with Leaflet Maps**, and a dedicated **Winter Arc Challenge**.
 
-A personal productivity and habit-tracking Progressive Web App designed to help you build better routines, monitor daily performance, and turn small actions into long-term progress.
-
-Progress Tracker combines habit management, streak tracking, gamified milestones, performance insights, and an evolving running experience in one application.
-
-<p align="center">
-  <a href="https://progress-tracker-flame-omega.vercel.app"><strong>🌐 Live Demo</strong></a> ·
-  <a href="https://github.com/mohitshaw2406-pro/Progress-Tracker"><strong>📂 Source Code</strong></a>
-</p>
+Track your daily habits, build unbreakable streaks, map and record your runs, level up your avatar with XP, and conquer your goals 💪🔥
 
 ---
 
-## ✨ Overview
+## 🌐 Live Demo & Repository
 
-Building a habit is easy. Staying consistent is the challenge.
-
-Progress Tracker provides a structured space to:
-
-* Organize daily habits.
-* Monitor completion and consistency.
-* Visualize personal progress.
-* Track streaks and achievements.
-* Review performance over time.
-* Build a more intentional daily routine.
-
-The application follows a mobile-first approach and supports installation as a Progressive Web App.
+* **Live Web App:** [https://mohitshaw2406-pro.github.io/Progress-Tracker/](https://mohitshaw2406-pro.github.io/Progress-Tracker/)
+* **Repository:** [https://github.com/mohitshaw2406-pro/Progress-Tracker](https://github.com/mohitshaw2406-pro/Progress-Tracker)
 
 ---
 
-## 🌟 Features
+## 📱 Features
 
-### 🎯 Habit Management
+### 1. ✅ Habit Tracking & Management
+* **Custom Habits:** Create, edit, and delete habits with custom names, sub-descriptions, emoji icons, and color palettes.
+* **Quick Add:** Instant inline habit creation directly from the dashboard.
+* **Daily Check-ins:** Interactive habit toggle cards with visual completion animations and daily completion percentages.
+* **Sub-Tracker System (Advanced):** Attach sub-items (e.g. gym workout sets, reps, weights, or timed exercises) inside any habit with independent progress tracking.
 
-* Create, edit, and delete habits.
-* Mark daily habits as complete.
-* View completion status and recent activity.
-* Organize habits with individual icons and colors.
+### 2. 🔥 Streak System & Gamified XP
+* **Dynamic Streaks:** Real-time current streak, best streak, and freeze/perfect day detection.
+* **XP & Level Progression:** Earn XP for every habit and run completed, advancing through ranked titles from *Beginner Grinder* to *Unstoppable Legend*.
+* **Unlockable Badges:** Earn milestone achievements including *First Step* 🎯, *Week Warrior* 🔥, *Consistency King* 👑, *Century Club* 💯, and *Beast Mode* 🦁.
 
-### 🔥 Streaks & Gamification
+### 3. 🏃 Real-Time GPS Running Tracker
+* **Live GPS Tracking:** Accurate distance measurement using great-circle Haversine calculations and GPS accuracy filtering.
+* **Real-Time Running Metrics:** Live elapsed time (wall-clock timestamp drift-free), distance (meters/km), average pace (min/km), and satellite status indicator (Active / Weak / Searching).
+* **Interactive Route Maps:** Route recording rendered via Leaflet & OpenStreetMap with custom Start and Finish markers, interactive polyline route maps, and expandable fullscreen route modals.
+* **Active Run Persistence & Background Recovery (Phase B1 & B2):**
+  * Active run state saved to user-scoped local storage across page reloads.
+  * Automatic foreground recovery: elapsed time updates immediately via wall-clock timestamps when returning to the app.
+  * Baseline reset mechanism prevents artificial distance jumps or speed spikes after background browser suspension.
+  * Automatic GPS watch suspension while in the background to save battery and eliminate orphaned processes.
+* **Run History & Multi-Day Persistence:** Full history log with run route modal previews, individual run deletion, multi-day deduplicated ID merging, and offline save queueing.
+* **Running Analytics & Personal Records (PRs):**
+  * Total runs, total distance, overall average pace, fastest pace, longest run, and active running streak.
+  * Personal Record trophy cards for Longest Run, Fastest Pace, Longest Duration, Most Active Day, Highest Week, and Most Active Month.
 
-* Track consecutive activity streaks.
-* Earn XP through habit completion.
-* Progress through levels and titles.
-* Unlock milestone badges.
-* Celebrate achievements with interactive feedback.
+### 4. ❄️ Winter Arc Challenge (Oct 1 – Dec 31)
+* **92-Day Seasonal Challenge:** Dedicated discipline tracking module for the Q4 Winter Arc grind.
+* **Customizable Targets:** Set personal targets for Total Runs, Target Distance (km), Habit Completions, and Active Running Days.
+* **Live Progress Rings:** Visual SVG progress rings, percentage completions, and days remaining countdown timer.
+* **Daily Checklist:** Integrated daily habit check-off directly inside the Winter Arc tab.
 
-### 📊 Progress & Analytics
+### 5. 📊 Analytics & Insights Dashboard
+* **GitHub-Style Consistency Heatmap:** Year-round activity heatmap with color-coded intensity reflecting daily completion rates.
+* **Interactive Day Inspection:** Click any heatmap tile to inspect completed habits and historical performance for that day.
+* **Weekly & Monthly Views:** Visual progress bars, day-by-day consistency breakdowns, and full monthly calendar grids.
+* **Habit Insights:** Automatic identification of most active habit, overall consistency score, and habits needing attention.
 
-* Daily progress overview.
-* Weekly and monthly activity visualization.
-* GitHub-style activity heatmap.
-* Habit performance insights.
-* Personal records.
-* Interactive heatmap details.
+### 6. ☁️ Dual Storage Architecture (Firebase & Guest Mode)
+* **Firebase Cloud Sync:** Google Sign-in authentication with real-time Firestore database synchronization across mobile, desktop, and tablets.
+* **Instant Guest Mode:** Full app functionality with isolated, persistent `localStorage` for privacy-conscious users without requiring sign-in.
+* **Multi-User Isolation:** Strict separation of data, active runs, and settings between Guest sessions and individual Firebase user accounts.
 
-### 🧩 Sub-Tracker
-
-Break larger habits into smaller actionable steps.
-
-* Create sub-items inside habits.
-* Track individual completion.
-* Monitor sub-task progress.
-
-### ⚡ Today Command Center
-
-A centralized daily overview featuring:
-
-* Today's completion percentage.
-* Completed and remaining habits.
-* Current streak.
-* Dynamic progress visualization.
-* Completion state and feedback.
-
-### 🏃 Run Tracker
-
-An evolving running feature with a session state machine:
-
-* Idle
-* Running
-* Paused
-* Finished
-
-The current implementation focuses on session controls and run-state handling.
-
-> GPS-based route tracking, distance measurement, and pace analytics are future development goals, not current advertised capabilities.
-
-### 📱 Progressive Web App
-
-* Installable on supported devices.
-* Web app manifest.
-* Service worker integration.
-* Mobile-friendly experience.
-* App-like access from the home screen.
+### 7. 📲 Progressive Web App (PWA)
+* **Installable:** Native-like experience with install prompt on Android, iOS, Windows, and macOS ("Add to Home Screen").
+* **Service Worker Caching:** Fast asset caching and reliable performance.
+* **Responsive Design:** Dark-themed UI optimized for mobile touch screens, tablets, and desktop viewports.
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Tech Stack
 
-| Technology              | Purpose                                   |
-| ----------------------- | ----------------------------------------- |
-| HTML5                   | Application structure                     |
-| CSS3                    | Styling and responsive interface          |
-| Vanilla JavaScript      | Application logic and interactions        |
-| Firebase Authentication | User authentication                       |
-| Cloud Firestore         | Cloud data storage and synchronization    |
-| Express.js              | Node.js application server                |
-| PWA                     | Installability and service worker support |
-| Vercel                  | Application deployment                    |
+* **Frontend:** Vanilla JavaScript (ES6+ Modules), HTML5, CSS3 (Modern Flexbox & CSS Grid)
+* **Maps & Mapping:** Leaflet.js, OpenStreetMap
+* **Backend & Cloud:** Node.js, Express (Static Web Server)
+* **Database & Auth:** Google Firebase (Firebase Authentication, Cloud Firestore)
+* **PWA:** Web App Manifest (`manifest.json`), Service Worker (`sw.js`)
 
 ---
 
-## 🏗️ Project Structure
-
-```text
-Progress-Tracker/
-│
-├── index.html
-├── style.css
-├── script.js
-├── server.js
-├── sw.js
-├── manifest.json
-├── metadata.json
-├── package.json
-├── .env.example
-│
-├── progress-tracker-icon-192.png
-└── progress-tracker-icon-512.png
-```
-
----
-
-## ⚙️ Run Locally
+## 🚀 Getting Started
 
 ### Prerequisites
 
-* Node.js
-* npm
-* Git
+* [Node.js](https://nodejs.org/) (v18 or higher recommended)
+* [npm](https://www.npmjs.com/) (bundled with Node.js)
 
-### 1. Clone the repository
+### Installation
 
-```bash
-git clone https://github.com/mohitshaw2406-pro/Progress-Tracker.git
-```
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/mohitshaw2406-pro/Progress-Tracker.git
+   cd Progress-Tracker
+   ```
 
-### 2. Navigate to the project
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-```bash
-cd Progress-Tracker
-```
+3. **Start the local server:**
+   ```bash
+   npm start
+   ```
+   The app will run at `http://localhost:3000`.
 
-### 3. Install dependencies
+4. **Run code checks / linting:**
+   ```bash
+   npm run lint
+   ```
 
-```bash
-npm install
-```
+---
 
-### 4. Configure environment
-
-Create a `.env` file using `.env.example` as a reference.
-
-```env
-PORT=3000
-FIREBASE_API_KEY=your_firebase_api_key
-```
-
-Configure the Firebase client settings required by the application. Never commit private credentials or service account secrets.
-
-### 5. Start the application
-
-```bash
-npm run dev
-```
-
-Open:
+## 📂 Project Structure
 
 ```text
-http://localhost:3000
+Progress-Tracker/
+├── index.html                    # Single-page application markup & modals
+├── script.js                     # Core application logic, GPS engine, sync & stats
+├── style.css                     # Dark-mode styling, responsive layouts & animations
+├── server.js                     # Express server for local development & deployment
+├── sw.js                         # Service worker for offline asset caching
+├── manifest.json                 # Web App Manifest for PWA installation
+├── package.json                  # Project metadata, scripts, and dependencies
+├── metadata.json                 # AI Studio configuration & permissions
+├── .env.example                  # Environment configuration template
+├── progress-tracker-icon-192.png # PWA app icon (192x192)
+├── progress-tracker-icon-512.png # PWA app icon (512x512)
+└── README.md                     # Project documentation
 ```
 
 ---
 
-## 📦 Available Scripts
+## ⚙️ How to Use
 
-| Command         | Description                            |
-| --------------- | -------------------------------------- |
-| `npm run dev`   | Start the Express server               |
-| `npm start`     | Start the application                  |
-| `npm run build` | Static application readiness check     |
-| `npm run lint`  | Run the configured server syntax check |
-
----
-
-## 🔐 Data & Authentication
-
-The application integrates Firebase Authentication and Cloud Firestore for user authentication and cloud-backed data functionality.
-
-The application uses Firebase user identity to associate user data with the authenticated account.
-
-Firebase configuration must be supplied through the appropriate environment configuration.
+1. **Choose an Account Mode:**
+   * Click **Sign in with Google** to sync data across all your devices via Firebase.
+   * Or click **Continue as Guest** to start tracking immediately with local device storage.
+2. **Set Up Habits:**
+   * Navigate to the **Habits** tab to customize existing habits or add new ones.
+   * Add workout sub-items (e.g. Bench Press, Squats, Running) to track specific sets and reps.
+3. **Log Daily Progress:**
+   * Check off habits on the **Today** screen to build streaks and earn XP.
+4. **Track a Run:**
+   * Switch to the **🏃 Run** tab, tap **Start Run**, and allow location permissions.
+   * View live distance, pacing, duration, and your GPS track. Tap **Finish** and **Save** to add it to your Run History.
+5. **Join the Winter Arc:**
+   * Open the **❄️ Winter** tab to set custom Q4 targets and watch your progress rings fill up.
 
 ---
 
-## 🚀 Deployment
+## 🗺️ Roadmap & Planned Features
 
-The project has a Vercel deployment configuration through its Node.js/Express entry point.
+The following features are planned for future releases:
 
-Live application:
-
-**[Progress Tracker — Open App](https://progress-tracker-flame-omega.vercel.app)**
-
----
-
-## 🗺️ Future Roadmap
-
-Planned areas of development include:
-
-* [ ] GPS-based running sessions.
-* [ ] Distance, duration, and pace analytics.
-* [ ] Enhanced running history.
-* [ ] Additional personal insights.
-* [ ] Data export options.
-* [ ] Further PWA improvements.
-
-Roadmap items are planned enhancements and are not represented as completed functionality.
+* [ ] Push Notifications for daily habit reminders 🔔
+* [ ] Data Export & Backup (CSV / JSON format) 📄
+* [ ] Social Leaderboard & Friend Activity Feed 🏆
+* [ ] Custom theme accents (Violet, Emerald, Amber, Crimson) 🎨
+* [ ] GPX / Strava workout export 🚴
 
 ---
 
 ## 👨‍💻 Author
 
-**Mohit Kumar Shaw**
-
-B.Tech CSE (Data Science) Student | Developer
-
-* GitHub: [@mohitshaw2406-pro](https://github.com/mohitshaw2406-pro)
-* LinkedIn: [Mohit Shaw](https://www.linkedin.com/in/mohit-shaw-17007a345)
+Built with dedication by **[Mohit Shaw](https://github.com/mohitshaw2406-pro)** 💪🔥
 
 ---
 
-## 💡 Project Philosophy
+## ⭐ Support
 
-Progress is not always about doing something extraordinary.
+If you find Progress Tracker helpful:
+* Star ⭐ the [GitHub repository](https://github.com/mohitshaw2406-pro/Progress-Tracker)
+* Share it with friends and fellow grinders
+* Keep showing up every single day 🚀
 
-Sometimes, it is simply about showing up again tomorrow.
-
-**Track the effort. Respect the process. Keep progressing.** 🚀
-
----
-
-<p align="center">
-  ⭐ If you find this project interesting, consider giving the repository a star!
-</p>
